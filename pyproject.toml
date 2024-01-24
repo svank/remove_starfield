@@ -10,6 +10,7 @@ dependencies = [
 	"matplotlib >= 3.6",
 	"numpy >= 1.21",
 	"scipy >= 1.8",
+	"reproject >= 0.13",
 ]
 requires-python = ">= 3.8"
 authors = [
