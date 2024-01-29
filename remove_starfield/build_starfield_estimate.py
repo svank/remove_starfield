@@ -463,8 +463,19 @@ class Starfield:
     frame_count: np.ndarray | None = None
     attribution: np.ndarray | None = None
     
-    def save(self, path):
-        with h5py.File(path, 'w') as f:
+    def save(self, path: str, overwrite=True):
+        """Saves the contents of this object to a file
+        
+        If a file already exists 
+
+        Parameters
+        ----------
+        path : ``str`` or file-like object
+            The file path at which to save the data
+        overwrite : ``bool``
+            Whether to overwrite the file if it already exists
+        """
+        with h5py.File(path, 'w' if overwrite else 'w-') as f:
             f.create_dataset("starfield", data=self.starfield)
             f.create_dataset("wcs", data=self.wcs.to_header_string())
             if self.frame_count is not None:
@@ -473,7 +484,19 @@ class Starfield:
                 f.create_dataset("attribution", data=self.attribution)
     
     @classmethod
-    def load(cls, path):
+    def load(cls, path: str):
+        """Loads a `Starfield` that was previously saved to disk
+
+        Parameters
+        ----------
+        path : ``str`` or file-like object
+            The file path to load from
+
+        Returns
+        -------
+        starfield : `Starfield`
+            The object loaded from disk
+        """
         with h5py.File(path, 'r') as f:
             # All this [:].copy() syntax ensures we read the data out of the
             # hdf5 file before it's closed
