@@ -27,13 +27,13 @@ def prefilter_image(
 
     Parameters
     ----------
-    image_array : np.ndarray
+    image_array : ``np.ndarray``
         The input image to be prefiltered
-    percentile : float
+    percentile : ``float``
         The percentile value to use in each neighborhood, between 0 and 100
-    ws_x : int
+    ws_x : ``int``
         The size of the window in the x direction. Should be odd.
-    ws_y : int
+    ws_y : ``int``
         The size of the window in the y direction. Should be odd.
     
     Returns
