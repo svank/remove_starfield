@@ -1,11 +1,18 @@
 from collections.abc import Iterable
+import copy
+from dataclasses import dataclass
 from itertools import repeat
 from math import ceil, floor
 import multiprocessing
 import random
 
 from astropy.io import fits
+import astropy.visualization.wcsaxes
+import astropy.units as u
 from astropy.wcs import WCS
+import h5py
+import matplotlib.colors
+import matplotlib.pyplot as plt
 import numpy as np
 import reproject
 from tqdm.auto import tqdm
@@ -156,19 +163,10 @@ def build_starfield_estimate_percentile(
 
     Returns
     -------
-    starfield : ``np.ndarray`` or ``List[np.ndarray]``
-        The starfield estimate, or a list of estimates if multiple percentile
-        values were provided.
-    starfield_wcs : ``astropy.wcs.WCS``
-        A WCS object describing the starfield array
-    frame_count : ``np.ndarray``
-        Provided if ``frame_count==True``. An array indicating the number of
-        input images that contributed to each pixel in the starfield estimate.
-    sources : ``np.ndarray`` or ``List[np.ndarray]``
-        Provided if ``attribution==True``. An array indicating the source file
-        for each value represented in the starfield estimate, as indexes into
-        the list of filenames. If multiple percentile values were provided,
-        multiple source arrays will be produced.
+    starfield : `Starfield` or ``List[Starfield]`
+        The starfield estimate, including a WCS and, if specified, frame counts
+        and attribution information. If multiple percentile values were given,
+        this will be a list of `Starfield`s.
     """
     percentiles_orig = percentiles
     percentiles = np.atleast_1d(np.asarray(percentiles))
@@ -356,14 +354,22 @@ def build_starfield_estimate_percentile(
         mask = np.isnan(starfields[0])
         attribution_array[:, mask] = -1
     pbar.close()
+    objects = []
+    for i in range(len(starfields)):
+        sf = starfields[i]
+        if frame_count:
+            fc = count
+        else:
+            fc = None
+        if attribution:
+            a = attribution_array[i]
+        else:
+            a = None
+        objects.append(Starfield(starfield=sf, wcs=starfield_wcs,
+                                 frame_count=fc, attribution=a))
     if not isinstance(percentiles_orig, Iterable):
-        starfields = starfields[0]
-    retval = starfields, starfield_wcs
-    if frame_count:
-        retval += (count,)
-    if attribution:
-        retval += (attribution_array,)
-    return retval
+        return objects[0]
+    return objects
 
 
 def _process_file(args):
@@ -450,4 +456,188 @@ def _find_percentile_for_strip(args):
         return result
 
 
+@dataclass
+class Starfield:
+    starfield: np.ndarray
+    wcs: WCS
+    frame_count: np.ndarray | None = None
+    attribution: np.ndarray | None = None
+    
+    def save(self, path):
+        with h5py.File(path, 'w') as f:
+            f.create_dataset("starfield", data=self.starfield)
+            f.create_dataset("wcs", data=self.wcs.to_header_string())
+            if self.frame_count is not None:
+                f.create_dataset("frame_count", data=self.frame_count)
+            if self.attribution is not None:
+                f.create_dataset("attribution", data=self.attribution)
+    
+    @classmethod
+    def load(cls, path):
+        with h5py.File(path, 'r') as f:
+            # All this [:].copy() syntax ensures we read the data out of the
+            # hdf5 file before it's closed
+            starfield = f["starfield"][:].copy()
+            wcs = WCS(f["wcs"][()])
+            frame_count = f.get("frame_count", None)
+            if frame_count is not None:
+                frame_count = frame_count[:].copy()
+            attribution = f.get("attribution", None)
+            if attribution is not None:
+                attribution = attribution[:].copy()
+        return Starfield(starfield=starfield, wcs=wcs, frame_count=frame_count,
+                         attribution=attribution)
+    
+    def plot(self, ax=None, vmin='auto', vmax='auto', pmin=0.1, pmax=99.99,
+             grid=False):
+        """Plots this starfield
+        
+        Plots with a gamma correction factor of 1/2.2
 
+        Parameters
+        ----------
+        ax : ``matplotlib.axes.Axes``, optional
+            An axes object on which to plot, or use the current axes if none is
+            provided
+        vmin : ``float``, optional
+            Manually set the colorbar minimum. By default, the starfield's
+            0.1th is used (see ``pmin`` below).
+        vmax : ``float``, optional
+            Manually set the colorbar minimum. By default, the starfield's
+            99.99th percentile is used (see ``pmax`` below).
+        pmin, pmax : ``float``, optional
+            Specify the percentile to be used if vmin/vmax are not provided.
+        grid : bool, optional
+            Whether to overplot a semi-transparent coordinate grid. Set to a
+            float between 0 and 1 to both enable and set the level of
+            transparency.
+
+        Returns
+        -------
+        im
+            The return value from the ``plt.imshow`` call
+        """
+        ax = self._prepare_axes(ax, grid)
+        
+        if vmin == 'auto':
+            vmin = np.nanpercentile(self.starfield, pmin)
+        if vmax == 'auto':
+            vmax = np.nanpercentile(self.starfield, pmax)
+        
+        cmap = copy.copy(plt.cm.Greys_r)
+        cmap.set_bad('black')
+        im = ax.imshow(
+            self.starfield, cmap=cmap, origin='lower',
+            norm=matplotlib.colors.PowerNorm(
+                gamma=1/2.2, vmin=vmin, vmax=vmax))
+        
+        # Set this image to be the one found by plt.colorbar, for instance. But
+        # if this manager attribute is empty, pyplot won't accept it.
+        if ax.figure.canvas.manager:
+            plt.sca(ax)
+            plt.sci(im)
+        
+        return im
+    
+    def plot_frame_count(self, ax=None, vmin=None, vmax=None, grid=False):
+        """Plots this starfield's frame_count array, if present
+        
+        This array indicates the number of input images that contributed to
+        each pixel of the output map.
+
+        Parameters
+        ----------
+        ax : ``matplotlib.axes.Axes``, optional
+            An axes object on which to plot, or use the current axes if none is
+            provided
+        vmin : ``float``, optional
+            Manually set the colorbar minimum.
+        vmax : ``float``, optional
+            Manually set the colorbar minimum.
+        grid : bool, optional
+            Whether to overplot a semi-transparent coordinate grid. Set to a
+            float between 0 and 1 to both enable and set the level of
+            transparency.
+
+        Returns
+        -------
+        im
+            The return value from the ``plt.imshow`` call
+        """
+        ax = self._prepare_axes(ax, grid)
+        
+        im = ax.imshow(self.frame_count, cmap='viridis', origin='lower',
+                       vmin=vmin, vmax=vmax)
+        
+        # Set this image to be the one found by plt.colorbar, for instance. But
+        # if this manager attribute is empty, pyplot won't accept it.
+        if ax.figure.canvas.manager:
+            plt.sca(ax)
+            plt.sci(im)
+        
+        return im
+    
+    def plot_attribution(self, ax=None, vmin=None, vmax=None, grid=False):
+        """Plots this starfield's attribution array, if present
+        
+        This array indicates the index in the input file list of the file that
+        contributed the value at each pixel in the output map.
+
+        Parameters
+        ----------
+        ax : ``matplotlib.axes.Axes``, optional
+            An axes object on which to plot, or use the current axes if none is
+            provided
+        vmin : ``float``, optional
+            Manually set the colorbar minimum.
+        vmax : ``float``, optional
+            Manually set the colorbar minimum.
+        grid : bool, optional
+            Whether to overplot a semi-transparent coordinate grid. Set to a
+            float between 0 and 1 to both enable and set the level of
+            transparency.
+
+        Returns
+        -------
+        im
+            The return value from the ``plt.imshow`` call
+        """
+        ax = self._prepare_axes(ax, grid)
+        
+        im = ax.imshow(self.attribution, cmap='viridis', origin='lower',
+                       vmin=vmin, vmax=vmax)
+        
+        # Set this image to be the one found by plt.colorbar, for instance. But
+        # if this manager attribute is empty, pyplot won't accept it.
+        if ax.figure.canvas.manager:
+            plt.sca(ax)
+            plt.sci(im)
+        
+        return im
+    
+    def _prepare_axes(self, ax, grid):
+        if ax is None:
+            ax = plt.gca()
+        
+        if not isinstance(ax, astropy.visualization.wcsaxes.WCSAxes):
+            # We can't apply a WCS projection to existing axes. Instead, we
+            # have to destroy and recreate the current axes. We skip that if
+            # the axes already are WCSAxes, suggesting that this has been
+            # handled already.
+            position = ax.get_position().bounds
+            ax.remove()
+            ax = astropy.visualization.wcsaxes.WCSAxes(
+                plt.gcf(), position, wcs=self.wcs)
+            plt.gcf().add_axes(ax)
+            lon, lat = ax.coords
+            lat.set_ticks(np.arange(-90, 90, 15) * u.degree)
+            lon.set_ticks(np.arange(-180, 180, 30) * u.degree)
+            lat.set_major_formatter('dd')
+            lon.set_major_formatter('dd')
+            if grid:
+                if isinstance(grid, bool):
+                    grid = 0.2
+                ax.coords.grid(color='white', alpha=grid)
+            lon.set_axislabel("Right Ascension")
+            lat.set_axislabel("Declination")
+        return ax
