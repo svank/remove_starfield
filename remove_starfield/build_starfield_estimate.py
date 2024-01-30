@@ -95,7 +95,7 @@ class ImageProcessor():
         return image
 
 
-def build_starfield_estimate_percentile(
+def build_starfield_estimate(
         files: Iterable[str],
         percentiles: float | Iterable[float],
         frame_count: bool=False,
@@ -150,8 +150,12 @@ def build_starfield_estimate_percentile(
         appropriate declination bounds (ensuring that all input images are
         contained in the bounds).
     stack_all : ``bool``, optional
-        For debugging---after all images have been stacked in the first chunk,
-        simply return the accumulation array.
+        For debugging---after the first chunk of the starfield has been
+        computed, return the full accumulation array as well as the starfield
+        (which is empty in all but the first chunk). This can be very useful to
+        inspect the distribution of values at each location. Use in combination
+        with ``ra_bounds`` and ``dec_bounds`` to target a particular portion of
+        the sky.
     shuffle : ``bool``, optional
         As the input images are reprojected into a given chunk of the output
         skymap, it is likely that many of them won't cover than chunk at all.
@@ -223,7 +227,7 @@ def build_starfield_estimate_percentile(
         starfield_wcs = starfield_wcs[bounds[2]:bounds[3]]
     
     # Allocate what will be the final output arrays
-    starfields = [np.full(shape, np.inf) for p in percentiles]
+    starfields = [np.full(shape, np.nan) for p in percentiles]
     if frame_count:
         count = np.zeros(shape, dtype=int)
     
@@ -237,6 +241,8 @@ def build_starfield_estimate_percentile(
         stride = int(stride)
     
     n_chunks = ceil(shape[1] / stride)
+    if stack_all:
+        n_chunks = 1
     pbar = tqdm(
         total=n_chunks * len(files) + n_chunks * shape[0])
     
@@ -314,11 +320,6 @@ def build_starfield_estimate_percentile(
             
             stack_sources = np.array(stack_sources)
             
-            if stack_all:
-                if frame_count:
-                    return starfield_accum_used, stack_sources, count
-                return starfield_accum_used, stack_sources
-            
             # Now that the stacking is complete, we need to calculate the
             # percentile value at each pixel
             
@@ -368,7 +369,9 @@ def build_starfield_estimate_percentile(
         objects.append(Starfield(starfield=sf, wcs=starfield_wcs,
                                  frame_count=fc, attribution=a))
     if not isinstance(percentiles_orig, Iterable):
-        return objects[0]
+        objects = objects[0]
+    if stack_all:
+        return starfield_accum_used, objects
     return objects
 
 
@@ -587,6 +590,9 @@ class Starfield:
         im
             The return value from the ``plt.imshow`` call
         """
+        if self.frame_count is None:
+            raise ValueError("This Starfield doesn't have a frame_count array")
+        
         ax = self._prepare_axes(ax, grid)
         
         im = ax.imshow(self.frame_count, cmap='viridis', origin='lower',
@@ -625,6 +631,10 @@ class Starfield:
         im
             The return value from the ``plt.imshow`` call
         """
+        if self.attribution is None:
+            raise ValueError(
+                "This Starfield doesn't have an attribution array")
+        
         ax = self._prepare_axes(ax, grid)
         
         im = ax.imshow(self.attribution, cmap='viridis', origin='lower',
