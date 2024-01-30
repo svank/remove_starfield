@@ -12,6 +12,7 @@ dependencies = [
 	"scipy >= 1.8",
 	"reproject >= 0.13",
 	"dask >= 2023.05.0",
+	"h5py >= 3.10",
 ]
 requires-python = ">= 3.8"
 authors = [
