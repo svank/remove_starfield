@@ -1,3 +1,4 @@
+import abc
 from collections.abc import Iterable
 import copy
 from dataclasses import dataclass
@@ -15,6 +16,7 @@ import matplotlib.colors
 import matplotlib.pyplot as plt
 import numpy as np
 import reproject
+import scipy.optimize
 from tqdm.auto import tqdm
 import warnings
 
@@ -95,12 +97,125 @@ class ImageProcessor():
         return image
 
 
+class StackReducer(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
+    def reduce_strip(self, strip: np.ndarray) -> np.ndarray:
+        """Method to reduce a section of the stack-of-reprojected-images
+        
+        The stack-of-reprojected-images is ``(n_input_image x ny x nx)``. In
+        the reduction stage, to reduce parallelism overhead, this data cube is
+        divided along the middle axis to form strips that are ``(n_input_image
+        x nx)``. This method receives one of those strips and reduces along the
+        first dimension. This method may return a size-``nx`` array, containing
+        one reduced value for each of the nx pixels along this strip. This
+        method may also return an array of shape ``(n_outputs x nx)``, where
+        ``n_outputs`` is selected by this method. In this case, ``n_outputs``
+        all-sky maps will be produced. This may be useful when searching for
+        the correct parameters for this reduction operation, to produce outputs
+        at multiple parameter values during the same pass through all the input
+        data. (For example, for a percentile-based reduction, computing one
+        percentile value, or computing ten percentiles in the same numpy call,
+        are equally slow, so this parameter space can be explored almost for
+        free.)
+        
+        Many values in the data slice will be NaN, indicating that a given
+        input image did not contribute to a given pixel, and these NaNs should
+        be ignored. When all ``n_input_image`` values for a given position
+        along the second axis, NaN should be returned for that pixel.
+        
+        Instances of this class or subclasses must be pickleable.
+
+        Parameters
+        ----------
+        strip : ``np.ndarray``
+            The input array of shape (n_input_image x nx), containing all
+            sample values from all input images for each pixel along a single
+            horizontal slice through the all-sky map.
+
+        Returns
+        -------
+        reduced_strip : np.ndarray
+            The output array of shape ``(nx,)`` or ``(n_outputs x nx)``
+        """
+
+
+class PercentileReducer(StackReducer):
+    """A `StackReducer` that calculates a percentile value at each pixel"""
+    def __init__(self, percentiles: float | Iterable):
+        """Configures this PercentileReducer
+
+        Parameters
+        ----------
+        percentiles : ``float`` or ``Iterable``
+            The percentile values to calculate. Can be one value, to produce
+            one all-sky map, or multiple values, to produce multiple all-sky
+            maps, one using each percentile value.
+        """
+        self.percentile = percentiles
+    
+    def reduce_strip(self, strip):
+        return np.nanpercentile(strip, self.percentiles, axis=0)
+
+
+class GaussianReducer(StackReducer):
+    def __init__(self, n_sigma=3):
+        self.n_sigma = n_sigma
+    
+    def reduce_strip(self, strip):
+        output = np.empty(strip.shape[1], dtype=strip.dtype)
+        for i in range(len(output)):
+            output[i] = self._reduce_pixel(strip[:, i])
+        return output
+    
+    @classmethod
+    def _gaussian(cls, x, x0, sigma, A):
+        return A * np.exp(-(x - x0)**2 / 2 / sigma**2)
+    
+    def _reduce_pixel(self, sequence):
+        min_size = 50
+        sequence = sequence[np.isfinite(sequence)]
+        if len(sequence) < min_size:
+            return np.nan
+        while True:
+            m = np.mean(sequence)
+            std = np.std(sequence)
+            f = np.abs(sequence - m) < self.n_sigma * std
+            if np.sum(f) <= min_size:
+                return np.nan
+            if np.all(f):
+                break
+            sequence = sequence[f]
+        nbins = len(sequence) // 5
+        nbins = min(nbins, 50)
+        histogram, bin_edges = np.histogram(sequence, bins=nbins)
+        bin_centers = bin_edges[:-1] + (bin_edges[1] - bin_edges[0])
+        with np.errstate(divide='ignore'):
+            sigma = 1/np.sqrt(histogram)
+        try:
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    action='ignore',
+                    message=".*Covariance of the parameters could not be "
+                            "estimated.*")
+                popt, pcov = scipy.optimize.curve_fit(
+                    self._gaussian,
+                    bin_centers, histogram,
+                    [bin_centers[np.argmax(histogram)],
+                    (bin_centers[-1] - bin_centers[0]) / nbins * 3,
+                    np.max(histogram)],
+                    sigma=sigma,
+                    maxfev=4000)
+            return popt[0]
+        except RuntimeError:
+            return np.inf
+
+
 def build_starfield_estimate(
         files: Iterable[str],
-        percentiles: float | Iterable[float],
         frame_count: bool=False,
         attribution: bool=False,
         processor: ImageProcessor=ImageProcessor(),
+        reducer: "StackReducer"=GaussianReducer(),
         ra_bounds: Iterable[float]=None,
         dec_bounds: Iterable[float]=None,
         stack_all: bool=False,
@@ -137,12 +252,15 @@ def build_starfield_estimate(
         between the two input values closest to the exact percentile location,
         and it's the closest of those values that is called the source.)
     processor : ``ImageProcessor``, optional
-        A class providing functions allowing the handling of the input images
-        to be customized. This class is responsible for loading images from
-        files, pre-processing them before being reprojected, and
+        An instance of a class providing functions allowing the handling of the
+        input images to be customized. This class is responsible for loading
+        images from files, pre-processing them before being reprojected, and
         post-processing them after reprojection but before stacking. If not
         provided, a default implementation loads data from FITS files and does
         nothing else. Must be pickleable to support parallel processing.
+    reducer : `StackReducer`, optional
+        An instance of a class with a ``reduce_strip`` method that reduces the
+        stack of images to an output map. See `StackReducer` for more details.
     ra_bounds, dec_bounds : ``Iterable`` of ``float``, optional
         If provided, the bounds to use for the output star map (instead of
         producing a full all-sky map). If not provided, the output map spans
@@ -169,12 +287,9 @@ def build_starfield_estimate(
     -------
     starfield : `Starfield` or ``List[Starfield]`
         The starfield estimate, including a WCS and, if specified, frame counts
-        and attribution information. If multiple percentile values were given,
-        this will be a list of `Starfield`s.
+        and attribution information. If multiple maps are produced by
+        ``processor``, this will be a list of `Starfield`s.
     """
-    percentiles_orig = percentiles
-    percentiles = np.atleast_1d(np.asarray(percentiles))
-    
     # Create the WCS describing the whole-sky starmap
     cdelt = 0.04
     shape = [int(floor(180/cdelt)), int(floor(360/cdelt))]
@@ -226,8 +341,8 @@ def build_starfield_estimate(
         shape[0] -= bounds[2]
         starfield_wcs = starfield_wcs[bounds[2]:bounds[3]]
     
-    # Allocate what will be the final output arrays
-    starfields = [np.full(shape, np.nan) for p in percentiles]
+    # Allocate this later
+    starfields = None
     if frame_count:
         count = np.zeros(shape, dtype=int)
     
@@ -266,11 +381,7 @@ def build_starfield_estimate(
         # This is the big honking array that holds a bunch of reprojected
         # images in memory at once. We allocate it only once and keep re-using
         # it, since allocating so much is quite slow.
-        starfield_accum = np.empty(cutout_shape, dtype=starfields[0].dtype)
-
-        if attribution:
-            attribution_array = np.full(
-                (len(percentiles), *shape), -1, dtype=int)
+        starfield_accum = np.empty(cutout_shape)
         
         # Begin looping over output chunks
         for i in range(n_chunks):
@@ -336,18 +447,27 @@ def build_starfield_estimate(
                     # sending the whole accumulation array between processes.
                     yield (
                         starfield_accum_used[:, i].copy(),
-                        percentiles,
-                        stack_sources if attribution else None)
+                        stack_sources if attribution else None,
+                        reducer)
             
             for y, res in enumerate(p.imap(
             # for y, res in enumerate(map(
-                    _find_percentile_for_strip,
+                    _reduce_strip,
                     args(),
                     chunksize=15)):
                     # )):
                 pbar.update()
                 if attribution:
                     res, srcs = res
+                if starfields is None:
+                    # Allocate what will be the final output arrays, since we
+                    # now know how many output maps to produce
+                    starfields = [
+                        np.full(shape, np.nan) for _ in range(res.shape[0])]
+                    if attribution:
+                        attribution_array = np.full(
+                            (len(starfields), *shape), -1, dtype=int)
+                if attribution:
                     attribution_array[:, y, xstart:xstop] = srcs
                 for starfield, r in zip(starfields, res):
                     starfield[y, xstart:xstop] = r
@@ -368,7 +488,7 @@ def build_starfield_estimate(
             a = None
         objects.append(Starfield(starfield=sf, wcs=starfield_wcs,
                                  frame_count=fc, attribution=a))
-    if not isinstance(percentiles_orig, Iterable):
+    if len(objects) == 1:
         objects = objects[0]
     if stack_all:
         return starfield_accum_used, objects
@@ -429,17 +549,19 @@ def _process_file(args):
     return ymin, ymax, xmin, xmax, output, fname
 
 
-def _find_percentile_for_strip(args):
+def _reduce_strip(args):
     """
     Internal function computing percentiles for a portion of the stack
     """
-    data, percentiles, stack_sources = args
+    data, stack_sources, reducer = args
     with warnings.catch_warnings():
         warnings.filterwarnings(action='ignore',
                                 message=".*All-NaN slice.*")
         warnings.filterwarnings(action='ignore',
                                 message=".*Mean of empty slice*")
-        result = np.nanpercentile(data, percentiles, axis=0)
+        result = reducer.reduce_strip(data)
+        if len(result.shape) == 1:
+            result = result.reshape((1, -1))
         if stack_sources is not None:
             # We need to figure out which input image contributed the output
             # value for each pixel. Since the exact Nth percentile likely lies
@@ -447,14 +569,14 @@ def _find_percentile_for_strip(args):
             # points, we search for the closest value and call that the
             # contributor.
             sources = []
-            for pctl in result:
-                distances = np.abs(data - pctl)
+            for res in result:
+                distances = np.abs(data - res)
                 distances = np.nan_to_num(distances, nan=np.inf, posinf=np.inf)
-                if distances.size:
+                if np.any(np.isfinite(distances)):
                     i = np.argmin(distances, axis=0)
                     sources.append(stack_sources[i])
                 else:
-                    sources.append('')
+                    sources.append(-1)
             return result, sources
         return result
 
