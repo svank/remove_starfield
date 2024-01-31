@@ -515,7 +515,7 @@ class Starfield:
                          attribution=attribution)
     
     def plot(self, ax=None, vmin='auto', vmax='auto', pmin=0.1, pmax=99.99,
-             grid=False):
+             grid=False, **kwargs):
         """Plots this starfield
         
         Plots with a gamma correction factor of 1/2.2
@@ -537,6 +537,8 @@ class Starfield:
             Whether to overplot a semi-transparent coordinate grid. Set to a
             float between 0 and 1 to both enable and set the level of
             transparency.
+        **kwargs
+            Passed to the ``plt.imshow()`` call.
 
         Returns
         -------
@@ -552,10 +554,13 @@ class Starfield:
         
         cmap = copy.copy(plt.cm.Greys_r)
         cmap.set_bad('black')
+        # Establish plotting defaults, but let kwargs overwrite them
+        kwargs = dict(cmap=cmap, origin='lower') | kwargs
         im = ax.imshow(
-            self.starfield, cmap=cmap, origin='lower',
+            self.starfield,
             norm=matplotlib.colors.PowerNorm(
-                gamma=1/2.2, vmin=vmin, vmax=vmax))
+                gamma=1/2.2, vmin=vmin, vmax=vmax),
+            **kwargs)
         
         # Set this image to be the one found by plt.colorbar, for instance. But
         # if this manager attribute is empty, pyplot won't accept it.
@@ -565,7 +570,8 @@ class Starfield:
         
         return im
     
-    def plot_frame_count(self, ax=None, vmin=None, vmax=None, grid=False):
+    def plot_frame_count(self, ax=None, vmin=None, vmax=None, grid=False,
+                         **kwargs):
         """Plots this starfield's frame_count array, if present
         
         This array indicates the number of input images that contributed to
@@ -584,6 +590,8 @@ class Starfield:
             Whether to overplot a semi-transparent coordinate grid. Set to a
             float between 0 and 1 to both enable and set the level of
             transparency.
+        **kwargs
+            Passed to the ``plt.imshow()`` call.
 
         Returns
         -------
@@ -595,8 +603,9 @@ class Starfield:
         
         ax = self._prepare_axes(ax, grid)
         
-        im = ax.imshow(self.frame_count, cmap='viridis', origin='lower',
-                       vmin=vmin, vmax=vmax)
+        # Establish plotting defaults, but let kwargs overwrite them
+        kwargs = dict(cmap='viridis', origin='lower') | kwargs
+        im = ax.imshow(self.frame_count, vmin=vmin, vmax=vmax, **kwargs)
         
         # Set this image to be the one found by plt.colorbar, for instance. But
         # if this manager attribute is empty, pyplot won't accept it.
@@ -606,7 +615,8 @@ class Starfield:
         
         return im
     
-    def plot_attribution(self, ax=None, vmin=None, vmax=None, grid=False):
+    def plot_attribution(self, ax=None, vmin=None, vmax=None, grid=False,
+                         mapper=None, **kwargs):
         """Plots this starfield's attribution array, if present
         
         This array indicates the index in the input file list of the file that
@@ -625,6 +635,16 @@ class Starfield:
             Whether to overplot a semi-transparent coordinate grid. Set to a
             float between 0 and 1 to both enable and set the level of
             transparency.
+        mapper : function
+            A function that maps values in the attribution array to other
+            values. For example, for PSP/WISPR data, this might be a function
+            that converts from the indices in the attribution array to PSP
+            encounter numbers. This allows the transformed quantity to be
+            easily plotted with world coordinate axis labels. Should be a
+            function that accepts as single pixel value as input and returns a
+            single modified pixel value.
+        **kwargs
+            Passed to the ``plt.imshow()`` call.
 
         Returns
         -------
@@ -637,8 +657,14 @@ class Starfield:
         
         ax = self._prepare_axes(ax, grid)
         
-        im = ax.imshow(self.attribution, cmap='viridis', origin='lower',
-                       vmin=vmin, vmax=vmax)
+        if mapper is None:
+            image = self.attribution
+        else:
+            image = np.vectorize(mapper)(self.attribution)
+        
+        # Establish plotting defaults, but let kwargs overwrite them
+        kwargs = dict(cmap='viridis', origin='lower') | kwargs
+        im = ax.imshow(image, vmin=vmin, vmax=vmax, **kwargs)
         
         # Set this image to be the one found by plt.colorbar, for instance. But
         # if this manager attribute is empty, pyplot won't accept it.
