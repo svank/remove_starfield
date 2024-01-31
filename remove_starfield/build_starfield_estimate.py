@@ -8,8 +8,6 @@ import multiprocessing
 import random
 
 from astropy.io import fits
-import astropy.visualization.wcsaxes
-import astropy.units as u
 from astropy.wcs import WCS
 import h5py
 import matplotlib.colors
@@ -20,6 +18,7 @@ import scipy.optimize
 from tqdm.auto import tqdm
 import warnings
 
+from .subtracted_image import SubtractedImage
 from . import utils
 
 
@@ -667,7 +666,7 @@ class Starfield:
         im
             The return value from the ``plt.imshow`` call
         """
-        ax = self._prepare_axes(ax, grid)
+        ax = utils.prepare_axes(ax, self.wcs, grid)
         
         if vmin == 'auto':
             vmin = np.nanpercentile(self.starfield, pmin)
@@ -723,7 +722,7 @@ class Starfield:
         if self.frame_count is None:
             raise ValueError("This Starfield doesn't have a frame_count array")
         
-        ax = self._prepare_axes(ax, grid)
+        ax = utils.prepare_axes(ax, self.wcs, grid)
         
         # Establish plotting defaults, but let kwargs overwrite them
         kwargs = dict(cmap='viridis', origin='lower') | kwargs
@@ -777,7 +776,7 @@ class Starfield:
             raise ValueError(
                 "This Starfield doesn't have an attribution array")
         
-        ax = self._prepare_axes(ax, grid)
+        ax = utils.prepare_axes(ax, self.wcs, grid)
         
         if mapper is None:
             image = self.attribution
@@ -796,29 +795,55 @@ class Starfield:
         
         return im
     
-    def _prepare_axes(self, ax, grid):
-        if ax is None:
-            ax = plt.gca()
+    def subtract_from_image(self,
+                            file : str,
+                            processor: ImageProcessor=ImageProcessor()):
+        """Subtracts this starfield from an image
         
-        if not isinstance(ax, astropy.visualization.wcsaxes.WCSAxes):
-            # We can't apply a WCS projection to existing axes. Instead, we
-            # have to destroy and recreate the current axes. We skip that if
-            # the axes already are WCSAxes, suggesting that this has been
-            # handled already.
-            position = ax.get_position().bounds
-            ax.remove()
-            ax = astropy.visualization.wcsaxes.WCSAxes(
-                plt.gcf(), position, wcs=self.wcs)
-            plt.gcf().add_axes(ax)
-            lon, lat = ax.coords
-            lat.set_ticks(np.arange(-90, 90, 15) * u.degree)
-            lon.set_ticks(np.arange(-180, 180, 30) * u.degree)
-            lat.set_major_formatter('dd')
-            lon.set_major_formatter('dd')
-            if grid:
-                if isinstance(grid, bool):
-                    grid = 0.2
-                ax.coords.grid(color='white', alpha=grid)
-            lon.set_axislabel("Right Ascension")
-            lat.set_axislabel("Declination")
-        return ax
+        The provided image file is loaded and pre-processed, and then this
+        `Starfield` is projected into the frame of the input image. Before
+        subtraction, the input image receives a Gaussian blurring to match that
+        which is inherently present in the starfield estimate.
+
+        Parameters
+        ----------
+        file : ``str``
+            The input file from which to remove stars
+        processor : `ImageProcessor`, optional
+            An `ImageProcessor` to load the file and pre-process the file.
+
+        Returns
+        -------
+        subtracted : `SubtractedImage`
+            A container class storing the subtracted image and all inputs
+        """
+        input_data, input_wcs = processor.load_image(file)
+        input_data, input_wcs = processor.preprocess_image(
+            input_data, input_wcs, file)
+        
+        # Project the starfield into the input image's frame
+        starfield_sample = reproject.reproject_adaptive(
+            (self.starfield, self.wcs), input_wcs, input_data.shape,
+            roundtrip_coords=False, return_footprint=False, x_cyclic=True,
+            conserve_flux=True, center_jacobian=True, despike_jacobian=True)
+        
+        # Ensure the input data receives the same Gaussian blurring as the
+        # starfield data has (once in the reprojection to build the starfield
+        # estimate, again in the reprojection back to this input image's frame)
+        
+        # TODO: Figure out if this is exactly correct, and if we can combine
+        # these two blurs into one round of blurring
+        img_r = reproject.reproject_adaptive(
+            (input_data, input_wcs), input_wcs, input_data.shape,
+            roundtrip_coords=False, return_footprint=False, conserve_flux=True)
+        img_r = reproject.reproject_adaptive(
+            (input_data, input_wcs), input_wcs, input_data.shape,
+            roundtrip_coords=False, return_footprint=False, conserve_flux=True)
+        
+        return SubtractedImage(
+            source_file=file,
+            source_data=input_data,
+            starfield_sample=starfield_sample,
+            blurred_data=img_r,
+            wcs=input_wcs,
+        )

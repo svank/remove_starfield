@@ -1,7 +1,10 @@
 from collections.abc import Iterable
 
 from astropy.io import fits
+import astropy.units as u
+import astropy.visualization.wcsaxes
 from astropy.wcs import WCS
+import matplotlib.pyplot as plt
 import numpy as np
 
 def find_collective_bounds(hdrs, wcs_target, trim=(0, 0, 0, 0), key=' '):
@@ -149,3 +152,33 @@ def find_bounds(hdr, wcs_target, trim=(0, 0, 0, 0), key=' ',
             int(np.ceil(np.max(cx))),
             int(np.floor(np.min(cy))),
             int(np.ceil(np.max(cy))))
+
+
+
+def prepare_axes(ax, wcs=None, grid=False):
+    if ax is None:
+        ax = plt.gca()
+    
+    if not isinstance(ax, astropy.visualization.wcsaxes.WCSAxes):
+        # We can't apply a WCS projection to existing axes. Instead, we
+        # have to destroy and recreate the current axes. We skip that if
+        # the axes already are WCSAxes, suggesting that this has been
+        # handled already.
+        position = ax.get_position().bounds
+        ax.remove()
+        ax = astropy.visualization.wcsaxes.WCSAxes(
+            plt.gcf(), position, wcs=wcs)
+        plt.gcf().add_axes(ax)
+        
+    lon, lat = ax.coords
+    lat.set_ticks(np.arange(-90, 90, 15) * u.degree)
+    lon.set_ticks(np.arange(-180, 180, 30) * u.degree)
+    lat.set_major_formatter('dd')
+    lon.set_major_formatter('dd')
+    if grid:
+        if isinstance(grid, bool):
+            grid = 0.2
+        ax.coords.grid(color='white', alpha=grid)
+    lon.set_axislabel("Right Ascension")
+    lat.set_axislabel("Declination")
+    return ax
