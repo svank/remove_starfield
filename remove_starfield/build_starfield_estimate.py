@@ -38,6 +38,8 @@ class ImageProcessor():
         -------
         image : ``np.ndarray``
             The image data
+        hdr : ``fits.Header``
+            The FITS header
         wcs : ``WCS``
             The WCS describing the image
         """
@@ -46,10 +48,11 @@ class ImageProcessor():
             hdr = hdul[hdu].header
             wcs = WCS(hdr, hdul, key=self.default_wcs_key)
             data = hdul[hdu].data
-        return data, wcs
+        return data, hdr, wcs
         
     def preprocess_image(self,
                          image: np.ndarray,
+                         hdr: fits.Header,
                          wcs: WCS,
                          filename: str) -> np.ndarray:
         """Processes an image array before it is reprojected and stacked
@@ -58,6 +61,8 @@ class ImageProcessor():
         ----------
         image : ``np.ndarray``
             The image array
+        hdr : ``fits.Header``
+            The header from the FITS file
         wcs : ``WCS``
             The WCS describing the image data
         filename : ``str``
@@ -74,6 +79,7 @@ class ImageProcessor():
         
     def postprocess_image(self,
                          image: np.ndarray,
+                         hdr: fits.Header,
                          wcs: WCS,
                          filename: str) -> np.ndarray:
         """
@@ -83,8 +89,10 @@ class ImageProcessor():
         ----------
         image : ``np.ndarray``
             The image array
+        hdr : ``fits.Header``
+            The header from the FITS file
         wcs : ``WCS``
-            The WCS describing the image data
+            The WCS describing the image data (post-reprojection)
         filename : ``str``
             The file path the image was loaded from
 
@@ -500,7 +508,7 @@ def _process_file(args):
     """
     fname, starfield_wcs, shape, processor = args
     
-    data, wcs = processor.load_image(fname)
+    data, hdr, wcs = processor.load_image(fname)
     
     # Identify where this image will fall in the whole-sky map
     cdelt = starfield_wcs.wcs.cdelt
@@ -530,7 +538,7 @@ def _process_file(args):
     if xmin >= shape[1] or xmax <= 0 or ymin >= shape[0] or ymax <= 0:
         return [None] * 6
     
-    data, wcs = processor.preprocess_image(data, wcs, fname)
+    data, wcs = processor.preprocess_image(data, hdr, wcs, fname)
     
     swcs = starfield_wcs[ymin:ymax, xmin:xmax]
     
@@ -543,7 +551,7 @@ def _process_file(args):
         center_jacobian=True,
     )
     
-    output = processor.postprocess_image(output, swcs, fname)
+    output = processor.postprocess_image(output, hdr, swcs, fname)
     
     return ymin, ymax, xmin, xmax, output, fname
 
@@ -817,9 +825,9 @@ class Starfield:
         subtracted : `SubtractedImage`
             A container class storing the subtracted image and all inputs
         """
-        input_data, input_wcs = processor.load_image(file)
+        input_data, input_hdr, input_wcs = processor.load_image(file)
         input_data, input_wcs = processor.preprocess_image(
-            input_data, input_wcs, file)
+            input_data, input_hdr, input_wcs, file)
         
         # Project the starfield into the input image's frame
         starfield_sample = reproject.reproject_adaptive(
