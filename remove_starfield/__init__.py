@@ -1,3 +1,7 @@
-from remove_starfield.build_starfield_estimate import (
-    build_starfield_estimate, ImageProcessor, Starfield)
-from remove_starfield.subtracted_image import SubtractedImage
+from .processor import ImageProcessor
+from .reducers import (
+    StackReducer, GaussianReducer, PercentileReducer)
+from .subtracted_image import SubtractedImage
+from .starfield import Starfield
+
+from .core import build_starfield_estimate

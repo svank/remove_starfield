@@ -7,7 +7,7 @@ import matplotlib.colors
 import matplotlib.pyplot as plt
 import numpy as np
 
-from remove_starfield import utils
+from . import utils
 
 
 @dataclass
