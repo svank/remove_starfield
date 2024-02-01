@@ -60,7 +60,7 @@ class PercentileReducer(StackReducer):
             one all-sky map, or multiple values, to produce multiple all-sky
             maps, one using each percentile value.
         """
-        self.percentile = percentiles
+        self.percentiles = percentiles
     
     def reduce_strip(self, strip):
         return np.nanpercentile(strip, self.percentiles, axis=0)
@@ -97,7 +97,7 @@ class GaussianReducer(StackReducer):
         nbins = len(sequence) // 5
         nbins = min(nbins, 50)
         histogram, bin_edges = np.histogram(sequence, bins=nbins)
-        bin_centers = bin_edges[:-1] + (bin_edges[1] - bin_edges[0])
+        bin_centers = bin_edges[:-1] + (bin_edges[1] - bin_edges[0]) / 2
         with np.errstate(divide='ignore'):
             sigma = 1/np.sqrt(histogram)
         try:
@@ -114,6 +114,9 @@ class GaussianReducer(StackReducer):
                     np.max(histogram)],
                     sigma=sigma,
                     maxfev=4000)
+            if popt[1] > 5 * (bin_centers[-1] - bin_centers[0]):
+                # This is probably a bad fit
+                return -np.inf
             return popt[0]
         except RuntimeError:
             return np.inf
