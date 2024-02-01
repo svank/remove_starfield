@@ -92,6 +92,10 @@ def build_starfield_estimate(
         The starfield estimate, including a WCS and, if specified, frame counts
         and attribution information. If multiple maps are produced by
         ``processor``, this will be a list of `Starfield`s.
+    stack : ``np.ndarray``
+        Returned if ``stack_all==True``. An array of shape ``(n_images x ny x
+        chunk_width)`` containing all the samples that contribute to the pixels
+        in the first chunk of computation.
     """
     # Create the WCS describing the whole-sky starmap
     cdelt = 0.04
@@ -294,7 +298,7 @@ def build_starfield_estimate(
     if len(objects) == 1:
         objects = objects[0]
     if stack_all:
-        return starfield_accum_used, objects
+        return objects, starfield_accum_used
     return objects
 
 
