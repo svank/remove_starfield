@@ -95,7 +95,12 @@ def build_starfield_estimate(
     stack : ``np.ndarray``
         Returned if ``stack_all==True``. An array of shape ``(n_images x ny x
         chunk_width)`` containing all the samples that contribute to the pixels
-        in the first chunk of computation.
+        in the first chunk of computation. (Note that ``n_images`` is the
+        number of images which contributed to this chunk, not the number of
+        input images.)
+    stack_sources : ``np.ndarray``
+        The index in the input file list of the source file for each position
+        along the first axis of ``stack``.
     """
     # Create the WCS describing the whole-sky starmap
     cdelt = 0.04
@@ -299,7 +304,7 @@ def build_starfield_estimate(
     if len(objects) == 1:
         objects = objects[0]
     if stack_all:
-        return objects, starfield_accum_used
+        return objects, starfield_accum_used, stack_sources
     return objects
 
 
