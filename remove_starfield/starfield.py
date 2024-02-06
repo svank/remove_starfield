@@ -67,7 +67,7 @@ class Starfield:
                          attribution=attribution)
     
     def plot(self, ax=None, vmin='auto', vmax='auto', pmin=0.1, pmax=99.99,
-             grid=False, **kwargs):
+             grid=False, use_wcs=True, **kwargs):
         """Plots this starfield
         
         Plots with a gamma correction factor of 1/2.2
@@ -89,6 +89,8 @@ class Starfield:
             Whether to overplot a semi-transparent coordinate grid. Set to a
             float between 0 and 1 to both enable and set the level of
             transparency.
+        use_wcs : ``bool``
+            Whether to plot in world coordinates instead of pixel coordinates.
         **kwargs
             Passed to the ``plt.imshow()`` call.
 
@@ -97,7 +99,7 @@ class Starfield:
         im
             The return value from the ``plt.imshow`` call
         """
-        ax = utils.prepare_axes(ax, self.wcs, grid)
+        ax = utils.prepare_axes(ax, self.wcs if use_wcs else None, grid)
         
         if vmin == 'auto':
             vmin = np.nanpercentile(self.starfield, pmin)
@@ -123,7 +125,7 @@ class Starfield:
         return im
     
     def plot_frame_count(self, ax=None, vmin=None, vmax=None, grid=False,
-                         **kwargs):
+                         use_wcs=True, **kwargs):
         """Plots this starfield's frame_count array, if present
         
         This array indicates the number of input images that contributed to
@@ -142,6 +144,8 @@ class Starfield:
             Whether to overplot a semi-transparent coordinate grid. Set to a
             float between 0 and 1 to both enable and set the level of
             transparency.
+        use_wcs : ``bool``
+            Whether to plot in world coordinates instead of pixel coordinates.
         **kwargs
             Passed to the ``plt.imshow()`` call.
 
@@ -153,7 +157,7 @@ class Starfield:
         if self.frame_count is None:
             raise ValueError("This Starfield doesn't have a frame_count array")
         
-        ax = utils.prepare_axes(ax, self.wcs, grid)
+        ax = utils.prepare_axes(ax, self.wcs if use_wcs else None, grid)
         
         # Establish plotting defaults, but let kwargs overwrite them
         kwargs = dict(cmap='viridis', origin='lower') | kwargs
@@ -168,7 +172,7 @@ class Starfield:
         return im
     
     def plot_attribution(self, ax=None, vmin=None, vmax=None, grid=False,
-                         mapper=None, **kwargs):
+                         mapper=None, use_wcs=True, **kwargs):
         """Plots this starfield's attribution array, if present
         
         This array indicates the index in the input file list of the file that
@@ -195,6 +199,8 @@ class Starfield:
             easily plotted with world coordinate axis labels. Should be a
             function that accepts as single pixel value as input and returns a
             single modified pixel value.
+        use_wcs : ``bool``
+            Whether to plot in world coordinates instead of pixel coordinates.
         **kwargs
             Passed to the ``plt.imshow()`` call.
 
@@ -207,7 +213,7 @@ class Starfield:
             raise ValueError(
                 "This Starfield doesn't have an attribution array")
         
-        ax = utils.prepare_axes(ax, self.wcs, grid)
+        ax = utils.prepare_axes(ax, self.wcs if use_wcs else None, grid)
         
         if mapper is None:
             image = self.attribution

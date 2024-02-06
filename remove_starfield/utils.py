@@ -159,6 +159,9 @@ def prepare_axes(ax, wcs=None, grid=False):
     if ax is None:
         ax = plt.gca()
     
+    if wcs is None:
+        return ax
+    
     if not isinstance(ax, astropy.visualization.wcsaxes.WCSAxes):
         # We can't apply a WCS projection to existing axes. Instead, we
         # have to destroy and recreate the current axes. We skip that if
