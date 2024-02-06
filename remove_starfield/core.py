@@ -165,8 +165,8 @@ def build_starfield_estimate(
     n_chunks = ceil(shape[1] / stride)
     if stack_all:
         n_chunks = 1
-    pbar = tqdm(
-        total=n_chunks * len(files) + n_chunks * shape[0])
+    pbar_stack = tqdm(total=n_chunks * len(files), desc="Reprojecting")
+    pbar_reduce = tqdm(total=n_chunks * shape[0], desc="Reducing")
     
     # The order we process these files doesn't matter, and for every section,
     # there will be some input files covering that section and some that don't.
@@ -212,7 +212,7 @@ def build_starfield_estimate(
             for (ymin, ymax, xmin, xmax, output, fname) in p.imap_unordered(
                     _process_file, args, chunksize=5):
             # for (ymin, ymax, xmin, xmax, output) in map(process_file_percentile, args):
-                pbar.update()
+                pbar_stack.update()
                 if output is not None:
                     # In practice, not every input image covers a portion of
                     # each chunk of the output map. As an optimization, instead
@@ -261,9 +261,9 @@ def build_starfield_estimate(
             # for y, res in enumerate(map(
                     _reduce_strip,
                     args(),
-                    chunksize=15)):
+                    chunksize=10)):
                     # )):
-                pbar.update()
+                pbar_reduce.update()
                 if attribution:
                     res, srcs = res
                 if starfields is None:
@@ -281,7 +281,8 @@ def build_starfield_estimate(
     if attribution:
         mask = np.isnan(starfields[0])
         attribution_array[:, mask] = -1
-    pbar.close()
+    pbar_stack.close()
+    pbar_reduce.close()
     objects = []
     for i in range(len(starfields)):
         sf = starfields[i]
