@@ -4,6 +4,7 @@ import warnings
 
 import numpy as np
 import scipy.optimize
+import scipy.stats
 
 
 class StackReducer(metaclass=abc.ABCMeta):
@@ -120,3 +121,36 @@ class GaussianReducer(StackReducer):
             return popt[0]
         except RuntimeError:
             return np.inf
+
+
+class SkewGaussianReducer(StackReducer):
+    def __init__(self, n_sigma=3):
+        self.n_sigma = n_sigma
+    
+    def reduce_strip(self, strip):
+        output = np.empty(strip.shape[1], dtype=strip.dtype)
+        for i in range(len(output)):
+            output[i] = self._reduce_pixel(strip[:, i])
+        return output
+    
+    def _reduce_pixel(self, sequence):
+        min_size = 50
+        sequence = sequence[np.isfinite(sequence)]
+        if len(sequence) < min_size:
+            return np.nan
+        while True:
+            m = np.mean(sequence)
+            std = np.std(sequence)
+            f = np.abs(sequence - m) < self.n_sigma * std
+            if np.sum(f) <= min_size:
+                return np.nan
+            if np.all(f):
+                break
+            sequence = sequence[f]
+        nbins = len(sequence) // 5
+        nbins = min(nbins, 50)
+        a, loc, scale = scipy.stats.skewnorm.fit(sequence)
+        if scale > 5 * (np.ptp(sequence)):
+            # This is probably a bad fit
+            return -np.inf
+        return loc
