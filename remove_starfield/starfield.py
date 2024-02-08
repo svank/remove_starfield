@@ -274,7 +274,7 @@ class Starfield:
             (input_data, input_wcs), input_wcs, input_data.shape,
             roundtrip_coords=False, return_footprint=False, conserve_flux=True)
         img_r = reproject.reproject_adaptive(
-            (input_data, input_wcs), input_wcs, input_data.shape,
+            (img_r, input_wcs), input_wcs, input_data.shape,
             roundtrip_coords=False, return_footprint=False, conserve_flux=True)
         
         return SubtractedImage(
