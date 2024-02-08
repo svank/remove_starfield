@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from astropy.io import fits
 from astropy.wcs import WCS
@@ -13,33 +13,23 @@ from . import utils
 @dataclass
 class SubtractedImage:
     """Container class for a subtracted image and associated data
-
-    Attributes
-    ----------
-    
-    subtracted : ``np.ndarray``
-        The blurred source data with the starfield estimate removed
-    wcs : ``WCS``
-        The WCS which describes all of the data arrays
-    source_file : ``str``
-        The file path from which the image-to-be-subtracted was loaded
-    source_data : ``np.ndarray``
-        The data loaded from the source file
-    blurred_data : ``np.ndarray``
-        The source data after being blurred (to match the blurring inherent in
+    """
+    subtracted: np.ndarray = field(init=False)
+    """The blurred source data with the starfield estimate removed"""
+    wcs: WCS
+    """The WCS which describes all of the data arrays"""
+    source_file: str
+    """The file path from which the image-to-be-subtracted was loaded"""
+    source_data: np.ndarray
+    """The data loaded from the source file"""
+    blurred_data: np.ndarray
+    """The source data after being blurred (to match the blurring inherent in
         the anti-aliased reprojection used to build the starfield estimate, and
         then to project that estimate into the source image's frame). When
         comparing the post-subtraction image to the source image, this is
-        likely the right source image to compare to.
-    starfield_sample : np.ndarray
-        The starfield estimate for this image
-        
-    """
-    source_file: str
-    source_data: np.ndarray
-    blurred_data: np.ndarray
+        likely the right source image to compare to."""
     starfield_sample: np.ndarray
-    wcs: WCS
+    """The starfield estimate for this image"""
     
     def __post_init__(self):
         self.subtracted = self.blurred_data - self.starfield_sample

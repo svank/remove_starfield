@@ -33,7 +33,8 @@ class StackReducer(metaclass=abc.ABCMeta):
         be ignored. When all ``n_input_image`` values for a given position
         along the second axis, NaN should be returned for that pixel.
         
-        Instances of this class or subclasses must be pickleable.
+        Instances of this class or subclasses must be pickleable (for
+        multi-processing communication, not for disk persistence).
 
         Parameters
         ----------

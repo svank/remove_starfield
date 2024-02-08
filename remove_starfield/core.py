@@ -88,7 +88,7 @@ def build_starfield_estimate(
 
     Returns
     -------
-    starfield : `Starfield` or ``List[Starfield]`
+    starfield : `Starfield` or ``List[Starfield]``
         The starfield estimate, including a WCS and, if specified, frame counts
         and attribution information. If multiple maps are produced by
         ``processor``, this will be a list of `Starfield`s.
