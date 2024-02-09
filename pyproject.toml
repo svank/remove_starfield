@@ -7,12 +7,13 @@ name = "remove_starfield"
 version = "0.0.1"
 dependencies = [
 	"astropy >= 5.0",
-	"matplotlib >= 3.6",
-	"numpy >= 1.21",
-	"scipy >= 1.8",
-	"reproject >= 0.13",
 	"dask >= 2023.05.0",
 	"h5py >= 3.10",
+	"ipywidgets >= 8.0",
+	"matplotlib >= 3.6",
+	"numpy >= 1.21",
+	"reproject >= 0.13",
+	"scipy >= 1.8",
 	"tqdm >= 4.66",
 ]
 requires-python = ">= 3.10"
@@ -27,5 +28,6 @@ readme = "README.md"
 test = [
 	"pytest >= 8.0",
 	"pytest-arraydiff >= 0.6",
+	"pytest-mock >= 3.7",
 	"pytest-mpl >= 0.16",
 ]

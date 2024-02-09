@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+import os
 
 from astropy.io import fits
 import astropy.units as u
@@ -185,3 +186,12 @@ def prepare_axes(ax, wcs=None, grid=False):
     lon.set_axislabel("Right Ascension")
     lat.set_axislabel("Declination")
     return ax
+
+
+def test_data_path(*segments):
+    return os.path.join(os.path.dirname(__file__),
+                        'tests', 'test_data', *segments)
+
+
+def data_path(*segments):
+    return os.path.join(os.path.dirname(__file__), 'data', *segments)
