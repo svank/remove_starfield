@@ -1,7 +1,5 @@
 from .. import star_tools, utils
 
-import os
-
 import numpy as np
 import pytest
 from pytest import approx
@@ -117,11 +115,10 @@ def test_extract_flux():
 
 @pytest.mark.array_compare
 def test_find_expected_stars_in_frame():
-    dir_path = utils.test_data_path(
-        'WISPR_files_with_data_half_size_L3', '20190405')
-    ifiles = os.listdir(dir_path)
-    file = os.path.join(dir_path, ifiles[0])
+    file = utils.test_data_path(
+        'WISPR_files_with_data_half_size_L3', '20190405',
+        'psp_L3_wispr_20190405T010554_V3_1221.fits')
     
     ret = star_tools.find_expected_stars_in_frame(file, trim=(10, 20, 30, 40))
-    ret = ret
+    
     return np.array(ret)
