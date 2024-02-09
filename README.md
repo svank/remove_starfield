@@ -6,3 +6,5 @@
 This repository contains code which estimates and removes the starfield from a set of images
 
 [Read the documentation](https://svank.github.io/remove_starfield/)
+
+![Starfield subtraction demo](docs/source/images/demo.png)
