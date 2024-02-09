@@ -1,4 +1,4 @@
-from .processor import ImageProcessor
+from .processor import ImageHolder, ImageProcessor
 from .reducers import (
     StackReducer, GaussianReducer, PercentileReducer)
 from .subtracted_image import SubtractedImage

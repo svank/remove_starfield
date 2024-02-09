@@ -314,7 +314,7 @@ def _process_file(args):
     """
     fname, starfield_wcs, shape, processor = args
     
-    data, hdr, wcs = processor.load_image(fname)
+    image_holder = processor.load_image(fname)
     
     # Identify where this image will fall in the whole-sky map
     cdelt = starfield_wcs.wcs.cdelt
@@ -322,7 +322,7 @@ def _process_file(args):
     ra_stop, dec_stop = starfield_wcs.pixel_to_world_values(
         shape[1] - 1, shape[0] - 1)
     bounds = utils.find_bounds(
-        wcs, starfield_wcs, key='A', trim=[70]*4,
+        image_holder.wcs, starfield_wcs, key='A', trim=[70]*4,
         world_coord_bounds=[ra_start - cdelt[0], ra_stop + cdelt[0],
                             dec_start - cdelt[1], dec_stop + cdelt[1]])
     
@@ -344,12 +344,12 @@ def _process_file(args):
     if xmin >= shape[1] or xmax <= 0 or ymin >= shape[0] or ymax <= 0:
         return [None] * 6
     
-    data, wcs = processor.preprocess_image(data, hdr, wcs, fname)
+    image_holder = processor.preprocess_image(image_holder)
     
     swcs = starfield_wcs[ymin:ymax, xmin:xmax]
     
     output = reproject.reproject_adaptive(
-        (data, wcs), swcs, (ymax-ymin, xmax-xmin),
+        (image_holder.image, image_holder.wcs), swcs, (ymax-ymin, xmax-xmin),
         return_footprint=False, roundtrip_coords=False,
         boundary_mode='strict',
         conserve_flux=True,
@@ -357,7 +357,7 @@ def _process_file(args):
         center_jacobian=True,
     )
     
-    output = processor.postprocess_image(output, hdr, swcs, fname)
+    output = processor.postprocess_image(output, swcs, image_holder)
     
     return ymin, ymax, xmin, xmax, output, fname
 

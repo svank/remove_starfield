@@ -254,15 +254,19 @@ class Starfield:
         subtracted : `SubtractedImage`
             A container class storing the subtracted image and all inputs
         """
-        input_data, input_hdr, input_wcs = processor.load_image(file)
-        input_data, input_wcs = processor.preprocess_image(
-            input_data, input_hdr, input_wcs, file)
+        image_holder = processor.load_image(file)
+        image_holder = processor.preprocess_image(image_holder)
+        input_data = image_holder.image
+        input_wcs = image_holder.wcs
         
         # Project the starfield into the input image's frame
         starfield_sample = reproject.reproject_adaptive(
             (self.starfield, self.wcs), input_wcs, input_data.shape,
             roundtrip_coords=False, return_footprint=False, x_cyclic=True,
             conserve_flux=True, center_jacobian=True, despike_jacobian=True)
+        
+        starfield_sample = processor.postprocess_starfield_estimate(
+            starfield_sample, image_holder)
         
         # Ensure the input data receives the same Gaussian blurring as the
         # starfield data has (once in the reprojection to build the starfield

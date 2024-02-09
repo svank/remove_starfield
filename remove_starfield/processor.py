@@ -1,13 +1,56 @@
+from dataclasses import dataclass
+
 from astropy.io import fits
 from astropy.wcs import WCS
 import numpy as np
 
 
-class ImageProcessor():
-    default_wcs_key = ' '
+@dataclass
+class ImageHolder():
+    """
+    Wrapper class to hold image, WCS, and any other data
     
-    def load_image(self,
-                   filename: str) -> (np.ndarray, WCS):
+    Implementations of `ImageProcessor` may attach additional information as
+    attributes of `ImageHolder` instances to carry necessary information
+    through the load -> preprocess -> postprocess chain.
+    """
+    image: np.ndarray
+    wcs: WCS
+
+
+class ImageProcessor():
+    """Class implementing an API for instrument-specific processing
+    
+    By subclassing this class and passing sub-class instances into functions
+    that accept a processor, the user can implement processing "hooks"
+    containing any custom processing that a data set requires.
+    
+    When an instance of `ImageProcessor` or a subclass is passed to
+    `build_starfield_estimate`, each of the input images will be loaded via
+    ``load_image``. If the loaded image falls within the portion of the sky map
+    being assembled, ``preprocess_image`` will be called, where calibration,
+    masking or trimming can be done. After the image is reprojected, it is
+    passed to ``postprocess_image`` before being added to the stack of
+    reprojected images.
+    
+    When passed to `Starfield.subtract_from_image`, the input image is loaded
+    and preprocessed, but ``postprocess_image`` is never called. The starfield
+    estimate projected into the input image's frame is passed to
+    ``postprocess_starfield_estimate``, and the result is subtracted from the
+    input image.
+    """
+    def __init__(self, wcs_key=' '):
+        """Instantiate a basic, FITS-reading processor
+
+        Parameters
+        ----------
+        wcs_key : str, optional
+            If there are multiple sets of WCS keys in the FITS header, use this
+            to indicate which one to load.
+        """
+        self.wcs_key = wcs_key
+    
+    def load_image(self, filename: str) -> ImageHolder:
         """Loads an image from a given filename
 
         Parameters
@@ -17,69 +60,76 @@ class ImageProcessor():
         
         Returns
         -------
-        image : ``np.ndarray``
-            The image data
-        hdr : ``fits.Header``
-            The FITS header
-        wcs : ``WCS``
-            The WCS describing the image
+        image_holder : `ImageHolder`
+            An `ImageHolder` containing the image, its WCS, and any additional
+            information that should be stored for later steps
         """
         with fits.open(filename) as hdul:
             hdu = 1 if hdul[0].data is None else 0
             hdr = hdul[hdu].header
-            wcs = WCS(hdr, hdul, key=self.default_wcs_key)
-            data = hdul[hdu].data
-        return data, hdr, wcs
+            wcs = WCS(hdr, hdul, key=self.wcs_key)
+            image = hdul[hdu].data
         
-    def preprocess_image(self,
-                         image: np.ndarray,
-                         hdr: fits.Header,
-                         wcs: WCS,
-                         filename: str) -> np.ndarray:
+        return ImageHolder(image, wcs)
+        
+    def preprocess_image(self, image_holder: ImageHolder) -> ImageHolder:
         """Processes an image array before it is reprojected and stacked
 
         Parameters
         ----------
-        image : ``np.ndarray``
-            The image array
-        hdr : ``fits.Header``
-            The header from the FITS file
-        wcs : ``WCS``
-            The WCS describing the image data
-        filename : ``str``
-            The file path the image was loaded from
+        image_holder : `ImageHolder`
+            The `ImageHolder` returned by a corresponding `load_image` call
 
         Returns
         -------
-        image : ``np.ndarray``
-            The processed image array
-        wcs : ``WCS``
-            The processed WCS
+        image_holder : `ImageHolder`
+            The `ImageHolder` after all adjustments have been made, including
+            processing of the image array and modifications to the WCS
         """
-        return image, wcs
+        return image_holder
         
     def postprocess_image(self,
-                         image: np.ndarray,
-                         hdr: fits.Header,
-                         wcs: WCS,
-                         filename: str) -> np.ndarray:
+                          processed_image: np.ndarray,
+                          processed_wcs: WCS,
+                          image_holder: ImageHolder) -> np.ndarray:
         """
-        Processes an image array after it is reprojected, before being stacked
+        Processes an image array after it is reprojected, before being stacked.
 
         Parameters
         ----------
-        image : ``np.ndarray``
-            The image array
-        hdr : ``fits.Header``
-            The header from the FITS file
-        wcs : ``WCS``
-            The WCS describing the image data (post-reprojection)
-        filename : ``str``
-            The file path the image was loaded from
+        processed_image : ``np.ndarray``
+            The reprojected image
+        processed_wcs : ``WCS``
+            The WCS describing the reprojected image
+        image_holder : `ImageHolder`
+            The `ImageHolder` of the corresponding input image
 
         Returns
         -------
         image : ``np.ndarray``
-            The processed image array
+            The post-processed image array
         """
-        return image
+        return processed_image
+    
+    def postprocess_starfield_estimate(
+            self,
+            starfield_estimate: np.ndarray,
+            input_image_holder: ImageHolder) -> np.ndarray:
+        """
+        Post-processes a starfield estimate before subtracting it from an image
+
+        Parameters
+        ----------
+        starfield_estimate : ``np.ndarray``
+            The starfield estimate for this image
+        input_image_holder : `ImageHolder`
+            The `ImageHolder` for the input image corresponding to this
+            starfield estimate
+
+        Returns
+        -------
+        starfield_estimate : ``np.ndarray``
+            The processed starfield estimate, ready to be subtracted from the
+            input image
+        """
+        return starfield_estimate
