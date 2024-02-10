@@ -51,7 +51,13 @@ class StackReducer(metaclass=abc.ABCMeta):
 
 
 class PercentileReducer(StackReducer):
-    """A `StackReducer` that calculates a percentile value at each pixel"""
+    """
+    A Reducer that calculates one or several percentile values at each pixel.
+        
+    See :ref:`Reduction Discussion` for the benefits and drawbacks of this
+    approach.
+    """
+    
     def __init__(self, percentiles: float | Iterable):
         """Configures this PercentileReducer
 
@@ -69,8 +75,25 @@ class PercentileReducer(StackReducer):
 
 
 class GaussianReducer(StackReducer):
-    def __init__(self, n_sigma=3):
+    """A `StackReducer` that fits a Gaussian at each pixel.
+    
+    In this calculation, first outliers are iteratively removed until all
+    remaining values are within ``n_sigma`` of the mean. If fewer than
+    ``min_size`` samples remain, no fit is performed and a NaN is returned.
+    Otherwise, a histogram of the data is fit with a Gaussian and its
+    center is taken as the output pixel.
+    
+    If the fitted Gaussian sigma value is more than five times the range of the
+    data (after outliers are removed), ``-inf`` is returned, to signal what
+    seems to be an obviously bad fit. ``+inf`` is returned if the fitting
+    routine fails to converge.
+    
+    See :ref:`Reduction Discussion` for the benefits and drawbacks of this
+    approach.
+    """
+    def __init__(self, n_sigma=3, min_size=50):
         self.n_sigma = n_sigma
+        self.min_size = min_size
     
     def reduce_strip(self, strip):
         output = np.empty(strip.shape[1], dtype=strip.dtype)
@@ -83,21 +106,22 @@ class GaussianReducer(StackReducer):
         return A * np.exp(-(x - x0)**2 / 2 / sigma**2)
     
     def _reduce_pixel(self, sequence):
-        min_size = 50
         sequence = sequence[np.isfinite(sequence)]
-        if len(sequence) < min_size:
+        if len(sequence) < self.min_size:
             return np.nan
+        
         while True:
             m = np.mean(sequence)
             std = np.std(sequence)
             f = np.abs(sequence - m) < self.n_sigma * std
-            if np.sum(f) <= min_size:
+            if np.sum(f) <= self.min_size:
                 return np.nan
             if np.all(f):
                 break
             sequence = sequence[f]
+        
         nbins = len(sequence) // 5
-        nbins = min(nbins, 50)
+        nbins = min(nbins, self.min_size)
         histogram, bin_edges = np.histogram(sequence, bins=nbins)
         bin_centers = bin_edges[:-1] + (bin_edges[1] - bin_edges[0]) / 2
         with np.errstate(divide='ignore'):
@@ -125,8 +149,17 @@ class GaussianReducer(StackReducer):
 
 
 class SkewGaussianReducer(StackReducer):
-    def __init__(self, n_sigma=3):
+    """A `StackReducer` that fits a skewed Gaussian at each pixel.
+    
+    This is very similar to `GaussianReducer``, but a skewed Gaussian or
+    skew-normal distribution is fit instead.
+    
+    See :ref:`Reduction Discussion` for the benefits and drawbacks of this
+    approach.
+    """
+    def __init__(self, n_sigma=3, min_size=50):
         self.n_sigma = n_sigma
+        self.min_size = min_size
     
     def reduce_strip(self, strip):
         output = np.empty(strip.shape[1], dtype=strip.dtype)
@@ -135,21 +168,20 @@ class SkewGaussianReducer(StackReducer):
         return output
     
     def _reduce_pixel(self, sequence):
-        min_size = 50
         sequence = sequence[np.isfinite(sequence)]
-        if len(sequence) < min_size:
+        if len(sequence) < self.min_size:
             return np.nan
         while True:
             m = np.mean(sequence)
             std = np.std(sequence)
             f = np.abs(sequence - m) < self.n_sigma * std
-            if np.sum(f) <= min_size:
+            if np.sum(f) <= self.min_size:
                 return np.nan
             if np.all(f):
                 break
             sequence = sequence[f]
         nbins = len(sequence) // 5
-        nbins = min(nbins, 50)
+        nbins = min(nbins, self.min_size)
         a, loc, scale = scipy.stats.skewnorm.fit(sequence)
         if scale > 5 * (np.ptp(sequence)):
             # This is probably a bad fit

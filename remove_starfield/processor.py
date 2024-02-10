@@ -55,7 +55,7 @@ class ImageProcessor():
 
         Parameters
         ----------
-        filename : ``str``
+        filename
             The file to load
         
         Returns

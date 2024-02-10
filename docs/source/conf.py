@@ -26,20 +26,21 @@ extensions = ["autoapi.extension",
 templates_path = ["_templates"]
 exclude_patterns = []
 
-
+default_role = "autolink"
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = "pydata_sphinx_theme"
-html_show_sourcelink = False
+html_show_sourcelink = True
 html_static_path = ["_static"]
+html_css_files = ['css/custom.css']
 html_theme_options = {
     "use_edit_page_button": True,
     "icon_links": [
         {
             "name": "GitHub",
-            "url": "https://github.com/punch-mission/regularizepsf",
+            "url": "https://github.com/svank/remove_starfield",
             "icon": "fa-brands fa-github",
             "type": "fontawesome",
         }
@@ -48,7 +49,6 @@ html_theme_options = {
     "show_toc_level": 3,
 }
 html_context = {
-    # "github_url": "https://github.com", # or your GitHub Enterprise site
     "github_user": "svank",
     "github_repo": "remove_starfield",
     "github_version": "main",

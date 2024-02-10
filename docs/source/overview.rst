@@ -57,6 +57,8 @@ values at each pixel (i.e. each celestial coordinate) in that frame.
 Several reduction functions are provided in this package, and the user can
 easily implement their own by subclassing `StackReducer`.
 
+.. _Reduction Discussion:
+
 Reduction Methods
 ,,,,,,,,,,,,,,,,,
 

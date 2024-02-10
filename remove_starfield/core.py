@@ -22,7 +22,7 @@ def build_starfield_estimate(
         ra_bounds: Iterable[float]=None,
         dec_bounds: Iterable[float]=None,
         stack_all: bool=False,
-        shuffle: bool=True):
+        shuffle: bool=True) -> Starfield:
     """Generate a starfield estimate from a set of images
     
     This is generally a slow, high-memory-use function, as each image must be
