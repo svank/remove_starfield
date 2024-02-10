@@ -13,10 +13,15 @@ from . import ImageProcessor, SubtractedImage, utils
 
 @dataclass
 class Starfield:
+    """Class representing an estinated, all-sky background map"""
     starfield: np.ndarray
+    """The all-sky map"""
     wcs: WCS
+    """A WCS describing the map"""
     frame_count: np.ndarray | None = None
+    """The number of input images that contributed to each pixel in the map"""
     attribution: np.ndarray | None = None
+    """The (approximate) source file number of the value in each pixel"""
     
     def save(self, path: str, overwrite=True):
         """Saves the contents of this object to a file

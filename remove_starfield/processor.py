@@ -44,7 +44,7 @@ class ImageProcessor():
 
         Parameters
         ----------
-        wcs_key : str, optional
+        wcs_key : ``str``, optional
             If there are multiple sets of WCS keys in the FITS header, use this
             to indicate which one to load.
         """
@@ -55,7 +55,7 @@ class ImageProcessor():
 
         Parameters
         ----------
-        filename
+        filename : ``str``
             The file to load
         
         Returns

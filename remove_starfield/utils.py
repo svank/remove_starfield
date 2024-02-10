@@ -157,6 +157,7 @@ def find_bounds(hdr, wcs_target, trim=(0, 0, 0, 0), key=' ',
 
 
 def prepare_axes(ax, wcs=None, grid=False):
+    """Applies a WCS projection to an Axes and sets up axis labels"""
     if ax is None:
         ax = plt.gca()
     
@@ -189,9 +190,13 @@ def prepare_axes(ax, wcs=None, grid=False):
 
 
 def test_data_path(*segments):
+    """Returns the path to the test data directory, with segments appended"""
     return os.path.join(os.path.dirname(__file__),
                         'tests', 'test_data', *segments)
 
 
 def data_path(*segments):
+    """
+    Returns the path to the package data directory, with segments appended
+    """
     return os.path.join(os.path.dirname(__file__), 'data', *segments)

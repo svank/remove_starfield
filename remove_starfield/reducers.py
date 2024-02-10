@@ -54,7 +54,7 @@ class PercentileReducer(StackReducer):
     """
     A Reducer that calculates one or several percentile values at each pixel.
         
-    See :ref:`Reduction Discussion` for the benefits and drawbacks of this
+    See `Reduction Discussion` for the benefits and drawbacks of this
     approach.
     """
     
@@ -88,7 +88,7 @@ class GaussianReducer(StackReducer):
     seems to be an obviously bad fit. ``+inf`` is returned if the fitting
     routine fails to converge.
     
-    See :ref:`Reduction Discussion` for the benefits and drawbacks of this
+    See `Reduction Discussion` for the benefits and drawbacks of this
     approach.
     """
     def __init__(self, n_sigma=3, min_size=50):
@@ -151,10 +151,10 @@ class GaussianReducer(StackReducer):
 class SkewGaussianReducer(StackReducer):
     """A `StackReducer` that fits a skewed Gaussian at each pixel.
     
-    This is very similar to `GaussianReducer``, but a skewed Gaussian or
+    This is very similar to `GaussianReducer`, but a skewed Gaussian or
     skew-normal distribution is fit instead.
     
-    See :ref:`Reduction Discussion` for the benefits and drawbacks of this
+    See `Reduction Discussion` for the benefits and drawbacks of this
     approach.
     """
     def __init__(self, n_sigma=3, min_size=50):

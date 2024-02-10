@@ -1,4 +1,4 @@
-from .. import GaussianReducer, PercentileReducer
+from ..reducers import GaussianReducer, PercentileReducer
 
 import numpy as np
 

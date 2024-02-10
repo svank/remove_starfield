@@ -92,7 +92,7 @@ def build_starfield_estimate(
     starfield : `Starfield` or ``List[Starfield]``
         The starfield estimate, including a WCS and, if specified, frame counts
         and attribution information. If multiple maps are produced by
-        ``processor``, this will be a list of `Starfield`s.
+        ``processor``, this will be a list of `Starfield` s.
     stack : ``np.ndarray``
         Returned if ``stack_all==True``. An array of shape ``(n_images x ny x
         chunk_width)`` containing all the samples that contribute to the pixels
