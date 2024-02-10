@@ -26,7 +26,7 @@ extensions = ["autoapi.extension",
 templates_path = ["_templates"]
 exclude_patterns = []
 
-default_role = "autolink"
+default_role = "any"
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
@@ -57,3 +57,5 @@ html_context = {
 
 
 autoapi_dirs = ["../../remove_starfield"]
+autoapi_ignore = ["*tests*"]
+autoapi_options = [ 'members', 'undoc-members', 'show-inheritance', 'show-module-summary', 'special-members', 'imported-members']

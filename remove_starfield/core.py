@@ -10,7 +10,8 @@ import reproject
 from tqdm.auto import tqdm
 import warnings
 
-from . import ImageProcessor, Starfield, reducers, utils
+from . import ImageProcessor, Starfield, utils
+from .reducers import StackReducer, GaussianReducer
 
 
 def build_starfield_estimate(
@@ -18,7 +19,7 @@ def build_starfield_estimate(
         frame_count: bool=False,
         attribution: bool=False,
         processor: ImageProcessor=ImageProcessor(),
-        reducer: "reducers.StackReducer"=reducers.GaussianReducer(),
+        reducer: StackReducer=GaussianReducer(),
         ra_bounds: Iterable[float]=None,
         dec_bounds: Iterable[float]=None,
         stack_all: bool=False,
@@ -54,7 +55,7 @@ def build_starfield_estimate(
         the output map. (In practice, the output values are interpolated
         between the two input values closest to the exact percentile location,
         and it's the closest of those values that is called the source.)
-    processor : ``ImageProcessor``, optional
+    processor : `ImageProcessor`, optional
         An instance of a class providing functions allowing the handling of the
         input images to be customized. This class is responsible for loading
         images from files, pre-processing them before being reprojected, and

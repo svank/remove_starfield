@@ -27,16 +27,16 @@ class ImageProcessor():
     
     When an instance of `ImageProcessor` or a subclass is passed to
     `build_starfield_estimate`, each of the input images will be loaded via
-    ``load_image``. If the loaded image falls within the portion of the sky map
-    being assembled, ``preprocess_image`` will be called, where calibration,
+    `load_image`. If the loaded image falls within the portion of the sky map
+    being assembled, `preprocess_image` will be called, where calibration,
     masking or trimming can be done. After the image is reprojected, it is
-    passed to ``postprocess_image`` before being added to the stack of
+    passed to `postprocess_image` before being added to the stack of
     reprojected images.
     
     When passed to `Starfield.subtract_from_image`, the input image is loaded
-    and preprocessed, but ``postprocess_image`` is never called. The starfield
+    and preprocessed, but `postprocess_image` is never called. The starfield
     estimate projected into the input image's frame is passed to
-    ``postprocess_starfield_estimate``, and the result is subtracted from the
+    `postprocess_starfield_estimate`, and the result is subtracted from the
     input image.
     """
     def __init__(self, wcs_key=' '):
