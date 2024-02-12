@@ -109,6 +109,9 @@ class SubtractedImage:
             gamma = 1/2.2
         
         def plot_subplot(ax, data):
+            lon, lat = ax.coords
+            lon.set_axislabel("Right Ascension")
+            lat.set_axislabel("Declination")
             args = dict(origin='lower', cmap=cmap) | kwargs
             im = ax.imshow(data,
                     norm=matplotlib.colors.PowerNorm(
