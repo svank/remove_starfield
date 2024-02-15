@@ -7,13 +7,18 @@ celestial coordinate (i.e. each right ascension--declination coordinate). This
 includes both stars and diffuse sources such as the Milky Way, but excludes
 planets and any other "foreground" sources, such as the extended solar corona.
 Additionally, stellar variability is ignored. This estimating process produces
-an all-sky map (or that portion of which your input images cover) of this
-estimated background. Once this background map has been produces and processed,
-it can be subtracted out of each of the input images.
+an all-sky map (or rather, a map of that portion of the sky that your input
+images cover) of this estimated background. Once this background map has been
+produced and processed, it can be subtracted out of each of the input images
+(or any other similar images).
 
 The intended application of this package is for solar/heliospheric image sets,
 in which the stellar background is a contaminant amidst the foreground signal
 of the solar corona.
+
+Note that this package includes a `Jupyter notebook
+<https://github.com/svank/remove_starfield/blob/main/remove_starfield_demo.ipynb>`_
+demonstrating the use of this package with WISPR data.
 
 Input data
 ----------
@@ -22,20 +27,27 @@ It is assumed that your input data set is a collection of celestial images in
 which large-scale foreground sources (such as the extended solar corona) have
 been largely suppressed. These images must have celestial WCS information that
 is sub-pixel accurate, and the point-spread function (PSF) must be uniform
-across the image plane and from image to image.
+across the image plane and from image to image. The flux calibration of the
+images must be consistent, so that stars don't vary in time (except for any
+intrinsic variability).
 
 Preparing the input data
 -------------------------
 
 In many cases, it will be important to pre-process the input data. This can
-include steps such as correcting the PSF. Another important factor at this
-stage is ensuring that all the input images have the same average background
-level (that is, the pixel value where there is no other signal). If your images
-tend to have a constant offset from zero and that offset varies through your
-image sequence, then in the next step where the images are stacked and a low
-percentile is taken, the selected value will be biased toward the
-low-background images. This type of time-varying background should be leveled in
-this pre-processing stage.
+include steps such as regularizing the PSF. (The `regularizepsf
+<https://github.com/punch-mission/regularizepsf>`_ package may be useful for
+this.) Another important factor at this stage is ensuring that all the input
+images have the same average background level (that is, the pixel value where
+there is no other signal). If your images tend to have a constant offset from
+zero and that offset varies through your image sequence, then in the next step
+where the images are stacked and reduced, the selected value will be biased by
+the varying background. This type of time-varying background should be leveled
+in this pre-processing stage. Additionally, if you have a constant background
+offset, that offset will become part of the starfield estimate, and it will
+therefore be subtracted from your images along with the starfield. You may
+therefore desire to zero out the offset for the images that go into the
+starfield estimation.
 
 The latter stages will benefit if the input images are as clean as possible.
 Planets and any other transients (for WISPR, this includes the frequent debris
@@ -44,8 +56,22 @@ ignored in later steps.) Any coronal signals, from both the K and F corona,
 should be removed to the extent possible. (With WISPR, I use L3 images where
 the F-corona has been estimated and removed, and I subtract from each pixel the
 value predicted by a bilinear function fit to the pixel values in a small
-region around the pixel--effectively linearizing and subtracting the K corona
+region around the pixel---effectively linearizing and subtracting the K corona
 from most regions.)
+
+Implementation Note
+,,,,,,,,,,,,,,,,,,,
+
+If the total amount of pre-processing is small, it can be done "live" as the
+images are loaded for the estimation step. This is done by implementing the
+preprocessing logic in a subclass of `ImageProcessor`. If the total
+preprocessing is large, then it may be advantageous to save out pre-processed
+images and use those for starfield estimation. This both speeds up iteration as
+you adjust estimation parameters, and speeds up estimation, since each image is
+loaded multiple times. Some pre-processing steps, such as PSF regularization,
+must also be done to the images from which the starfield will be subtracted, to
+ensure stellar shapes and fluxes match up. For these steps, it may therefore be
+very useful to encode the logic in your `ImageProcessor` subclass.
 
 Estimating the starfield
 ------------------------
@@ -56,6 +82,24 @@ values at each pixel (i.e. each celestial coordinate) in that frame.
 
 Several reduction functions are provided in this package, and the user can
 easily implement their own by subclassing `StackReducer`.
+
+Implementation Note
+,,,,,,,,,,,,,,,,,,,
+
+The simplest approach to this "reproject, stack, and reduce" workflow would be
+reproject all images into arrays the size of the all-sky map (which will
+be mostly empty pixels outside the image bounds, meaning the memory use will be
+much larger than just loading the images themselves into memory), and then
+reducing to build the final map. The memory usage of the approach is
+prohibitive for all but the smallest sets of input images. Instead, the output
+map is divided into several vertical strips. For each strip, this package
+reprojects all images into arrays the size of the strip, avoiding any
+reprojection work or memory use for images which don't span the strip, and then
+reduces to form the output for that strip. This produces large memory savings,
+but all work that occurs in `ImageProcessor` is repeated for each image that
+spans multiple strips. You may therefore want to keep your `ImageProcessor`
+subclass light, or implement a caching strategy if you must do more substantive
+processing and have the memory to spare.
 
 .. _Reduction Discussion:
 
@@ -155,7 +199,10 @@ shapes of stars line up correctly. This blurring is automatically provided by
    An example of an input image (from PSP/WISPR), the corresponding estimated
    starfield, and the result of the subtraction. A few black regions in the
    images mark detector defects, and the large bright "star" in the upper right
-   is a planet.
+   is a planet. Slightly bipolar spots (dark and bright regions side-by-side)
+   in the upper-left corner of the subtracted image indicate slight
+   misalignments between the starfield estimate and the actual star (likely
+   small inaccuracies in the lens distortion information in that corner).
 
 Checking starfield quality
 --------------------------

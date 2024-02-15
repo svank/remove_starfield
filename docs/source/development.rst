@@ -1,6 +1,11 @@
 Development
 ============
 
+Contributions of any kind are welcome! Please send a bug report or  pull
+request to `the github repository
+<https://github.com/svank/remove_starfield/tree/main>`_, or get in touch if
+you'd like to discuss.
+
 Building the docs
 ------------------
 The docs are built using ``sphinx``. First, you must install it and the other documentation requirements with ::
