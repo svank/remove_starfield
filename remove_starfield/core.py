@@ -22,6 +22,7 @@ def build_starfield_estimate(
         reducer: StackReducer=GaussianReducer(),
         ra_bounds: Iterable[float]=None,
         dec_bounds: Iterable[float]=None,
+        target_mem_usage: float=10,
         stack_all: bool=False,
         shuffle: bool=True) -> Starfield:
     """Generate a starfield estimate from a set of images
@@ -71,6 +72,12 @@ def build_starfield_estimate(
         all of right ascension, but the input images are used to determine
         appropriate declination bounds (ensuring that all input images are
         contained in the bounds).
+    target_mem_usage : ``float``, optional
+        The (approximate) maximum amount of memory to use for the accumulation
+        array, as a number of gigabytes. This will determine how many chunks
+        the output map is broken into. Higher values will tend to speed up the
+        computation. Actual memory usage will likely be less, unless there is a
+        portion of the all-sky map spanned by all the input images.
     stack_all : ``bool``, optional
         For debugging---after the first chunk of the starfield has been
         computed, return the full accumulation array as well as the starfield
@@ -162,11 +169,9 @@ def build_starfield_estimate(
     # Divide the output starfields into vertical strips, each of which will be
     # processed separately. This avoids extreme memory demands for large sets
     # of input files.
-    stride = 5001
-    if len(files) > 1000:
-        # Auto-reduce the stride when there are lots of input files.
-        stride /= len(files) / 1000
-        stride = int(stride)
+    size_of_pixel = np.empty(1).dtype.itemsize
+    size_of_column = size_of_pixel * shape[0] * len(files)
+    stride = target_mem_usage * 1024**3 // size_of_column
     
     n_chunks = ceil(shape[1] / stride)
     if stack_all:
@@ -267,7 +272,7 @@ def build_starfield_estimate(
             # for y, res in enumerate(map(
                     _reduce_strip,
                     args(),
-                    chunksize=10)):
+                    chunksize=20)):
                     # )):
                 pbar_reduce.update()
                 if attribution:
