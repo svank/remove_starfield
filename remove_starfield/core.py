@@ -238,7 +238,7 @@ def build_starfield_estimate(
                         count[:, xstart:xstop][ymin:ymax, xmin:xmax] += (
                             np.isfinite(output))
                     stack_sources.append(fname_to_i[fname])
-            
+            pbar_stack.refresh()
             # Ignore all the slices we didn't use
             starfield_accum_used = starfield_accum[:n_good]
             
@@ -284,6 +284,7 @@ def build_starfield_estimate(
                     attribution_array[:, y, xstart:xstop] = srcs
                 for starfield, r in zip(starfields, res):
                     starfield[y, xstart:xstop] = r
+            pbar_reduce.refresh()
     if attribution:
         mask = np.isnan(starfields[0])
         attribution_array[:, mask] = -1
