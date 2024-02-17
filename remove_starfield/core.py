@@ -123,13 +123,6 @@ def build_starfield_estimate(
     starfield_wcs.wcs.ctype = 'RA---CAR', 'DEC--CAR'
     starfield_wcs.wcs.cunit = 'deg', 'deg'
     
-    # Figure out how much of the full sky is covered by our set of images. If
-    # we don't go all the way to the celestial poles, we can limit our
-    # declination range and save time & memory.
-    # Only process every 15th file to speed this up a bit, on the assumption
-    # that the on-sky position varies slowly through the image sequence.
-    bounds = utils.find_collective_bounds(files[::15], starfield_wcs, key='A')
-    
     if ra_bounds is not None:
         # Apply user-specified RA bounds to the output starfield
         (x_min, x_max), _ = starfield_wcs.all_world2pix(ra_bounds, [0, 0], 0)
@@ -155,6 +148,13 @@ def build_starfield_estimate(
         y_size -= y_min
         shape[0] = int(y_size)
     else:
+        # Figure out how much of the full sky is covered by our set of images. If
+        # we don't go all the way to the celestial poles, we can limit our
+        # declination range and save time & memory.
+        # Only process every 15th file to speed this up a bit, on the assumption
+        # that the on-sky position varies slowly through the image sequence.
+        bounds = utils.find_collective_bounds(
+            files[::15], starfield_wcs, processor)
         # Apply default dec bounds to the output starfield, based on the
         # declination values covered by the input images.
         shape[0] -= shape[0] - bounds[3]
@@ -329,7 +329,7 @@ def _process_file(args):
     ra_stop, dec_stop = starfield_wcs.pixel_to_world_values(
         shape[1] - 1, shape[0] - 1)
     bounds = utils.find_bounds(
-        image_holder.wcs, starfield_wcs, key='A', trim=[70]*4,
+        image_holder.wcs, starfield_wcs,
         world_coord_bounds=[ra_start - cdelt[0], ra_stop + cdelt[0],
                             dec_start - cdelt[1], dec_stop + cdelt[1]])
     

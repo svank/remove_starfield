@@ -1,14 +1,16 @@
 from collections.abc import Iterable
 import os
 
-from astropy.io import fits
 import astropy.units as u
 import astropy.visualization.wcsaxes
 from astropy.wcs import WCS
 import matplotlib.pyplot as plt
 import numpy as np
 
-def find_collective_bounds(hdrs, wcs_target, trim=(0, 0, 0, 0), key=' '):
+from .processor import ImageProcessor
+
+def find_collective_bounds(wcses, wcs_target, trim=(0, 0, 0, 0),
+                           processor: ImageProcessor=None):
     """
     Finds the bounding coordinates for a set of input images.
     
@@ -17,21 +19,21 @@ def find_collective_bounds(hdrs, wcs_target, trim=(0, 0, 0, 0), key=' '):
     
     Parameters
     ----------
-    hdrs : Iterable
-        Either a list of Headers, or a list of lists of Headers. If the latter,
+    wcses : Iterable
+        Either a list of WCSes, or a list of lists of WCSes. If the latter,
         ``trim`` can be a list of trim values, one for each of the lists of
-        Headers. Instead of Headers, each instance can be the path to a FITS
+        Headers. Instead of WCSes, each instance can be the path to a FITS
         file.
     wcs_target : ``astropy.wcs.WCS``
         A WCS object describing an output coordinate system.
     trim : ``tuple`` or ``list``
         How many rows/columns to ignore from the input image. In order,
-        (left, right, bottom, top). If ``hdrs`` is a list of lists of Headers,
+        (left, right, bottom, top). If ``wcses`` is a list of lists of Headers,
         this can be (but does not have to be) be a list of tuples of trim
         values, one for each list of Headers.
-    hdr_key : ``str``
-        The key argument passed to WCS, to select which of a header's
-        coordinate systems to use.
+    processor : `ImageProcessor`
+        An `ImageProcessor` to load FITS files. Only required if file paths are
+        passed in for ``wcses``.
     
     Returns
     -------
@@ -39,23 +41,23 @@ def find_collective_bounds(hdrs, wcs_target, trim=(0, 0, 0, 0), key=' '):
         The bounding coordinates. In order, (left, right, bottom, top).
     """
     
-    if isinstance(hdrs, (fits.header.Header, str)):
-        hdrs = [[hdrs]]
-    if isinstance(hdrs[0], (fits.header.Header, str)):
-        hdrs = [hdrs]
+    if isinstance(wcses, (WCS, str)):
+        wcses = [[wcses]]
+    if isinstance(wcses[0], (WCS, str)):
+        wcses = [wcses]
     if not isinstance(trim[0], Iterable):
-        trim = [trim] * len(hdrs)
+        trim = [trim] * len(wcses)
     
     bounds = []
-    for h, t in zip(hdrs, trim):
-        bounds += [find_bounds(hdr, wcs_target, trim=t, key=key) for hdr in h]
+    for h, t in zip(wcses, trim):
+        bounds += [find_bounds(hdr, wcs_target, trim=t) for hdr in h]
     bounds = np.array(bounds).T
     return (np.min(bounds[0]), np.max(bounds[1]),
             np.min(bounds[2]), np.max(bounds[3]))
 
 
-def find_bounds(hdr, wcs_target, trim=(0, 0, 0, 0), key=' ',
-                world_coord_bounds=None):
+def find_bounds(wcs, wcs_target, trim=(0, 0, 0, 0),
+                processor: ImageProcessor=None, world_coord_bounds=None):
     """Finds the pixel bounds of a FITS header in an output WCS.
     
     The edges of the input image are transformed to the coordinate system of
@@ -69,18 +71,17 @@ def find_bounds(hdr, wcs_target, trim=(0, 0, 0, 0), key=' ',
     
     Parameters
     ----------
-    hdr : ``astropy.io.fits.header.Header`` or ``str`` or ``WCS``
-        A FITS header describing an input image's size and coordinate system,
-        or the path to a FITS file whose header will be loaded, or a WCS
-        produced from the FITS header.
-    wcs_target : ``astropy.io.fits.header.Header`` or ``astropy.wcs.WCS``
+    wcs : ``str`` or ``WCS``
+        A WCS describing an input image's size and coordinate system,
+        or the path to a FITS file whose header will be loaded.
+    wcs_target : ``astropy.wcs.WCS``
         A WCS object describing an output coordinate system.
     trim : ``tuple``
         How many rows/columns to ignore from the input image. In order,
         ``(left, right, bottom, top)``.
-    hdr_key : ``str``
-        The key argument passed to WCS, to select which of a header's
-        coordinate systems to use.
+    processor : `ImageProcessor`
+        An `ImageProcessor` to load FITS files. Only required if a file path is
+        passed in for ``wcs``.
     world_coord_bounds : ``list``
         Edge pixels of the image that fall outside these world coordinates are
         ignored. Must be a list of four values ``[xmin, xmax, ymin, ymax]``.
@@ -94,19 +95,9 @@ def find_bounds(hdr, wcs_target, trim=(0, 0, 0, 0), key=' ',
         straddles the output's wrap point.
     """
     # Parse inputs
-    if isinstance(hdr, WCS):
-        wcs = hdr
-    elif isinstance(hdr, str):
-        with fits.open(hdr) as hdul:
-            if hdul[0].data is None:
-                hdr = hdul[1].header
-            else:
-                hdr = hdul[0].header
-            wcs = WCS(hdr, hdul, key=key)
-    else:
-        wcs = WCS(hdr, key=key)
-    if not isinstance(wcs_target, WCS):
-        wcs_target = WCS(wcs_target)
+    if not isinstance(wcs, WCS):
+        ih = processor.load_image(wcs)
+        wcs = ih.wcs
     
     # Generate pixel coordinates along the edges, accounting for the trim
     # values
