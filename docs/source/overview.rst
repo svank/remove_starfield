@@ -87,10 +87,10 @@ Implementation Note
 ,,,,,,,,,,,,,,,,,,,
 
 The simplest approach to this "reproject, stack, and reduce" workflow would be
-reproject all images into arrays the size of the all-sky map (which will
+to reproject all images into arrays the size of the all-sky map (which will
 be mostly empty pixels outside the image bounds, meaning the memory use will be
 much larger than just loading the images themselves into memory), and then
-reducing to build the final map. The memory usage of the approach is
+reducing to build the final map. The memory usage of this approach is
 prohibitive for all but the smallest sets of input images. Instead, the output
 map is divided into several vertical strips. For each strip, this package
 reprojects all images into arrays the size of the strip, avoiding any
@@ -100,6 +100,18 @@ but all work that occurs in `ImageProcessor` is repeated for each image that
 spans multiple strips. You may therefore want to keep your `ImageProcessor`
 subclass light, or implement a caching strategy if you must do more substantive
 processing and have the memory to spare.
+
+The size of the vertical strips is by the ``target_mem_usage`` argument to
+`build_starfield_estimate`. The size of strips is set so that, considering the
+total number of input images and the size of the all-sky map, the maximum size
+of the strip's accumulation array can't exceed this amount. If each strip has
+some images which don't span the strip, the whole accumulation array won't be
+used. And since the accumulation array is allocated with ``np.empty``, the full
+amount of memory may never be used, as, depending on your operating system, the
+memory won't be reserved and allocated until it is actually accessed. It may
+therefore be reasonable to set ``target_mem_usage`` higher than your actual
+amount of memory so that the portion actually used is closer to the amount of
+free memory you have available.
 
 .. _Reduction Discussion:
 
