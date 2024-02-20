@@ -132,6 +132,9 @@ distribution around a single "true" background value.
 Note that despite performing individual fits for each pixel in the output map,
 this reduction method isn't unduly slow.
 
+This method is implemented, with variations, by `GaussianReducer`,
+`GaussianAmplitudeReducer`, and `MeanReducer`.
+
 Skew-Gaussian Reduction
 .......................
 
@@ -139,6 +142,8 @@ This method is very similar to Gaussian reduction, but the fitted function is a
 skewed Gaussian, potentially allowing the function to better fit distributions
 that resemble a Gaussian-noise distribution of "clean" samples, plus a tail of
 brighter samples when foreground signals are present.
+
+This method is implemented by `SkewGaussianReducer`.
 
 Percentile Reduction
 ....................
@@ -160,6 +165,8 @@ further from the center of the "clean sample" distribution. Some success can be
 had in fitting a correction factor as a function of pixel brightness that
 minimizes the similarity between pixels in an image to be subtracted and the
 starfield estimate for that image.
+
+This method is implemented by `PercentileReducer`.
 
 Results
 ,,,,,,,
