@@ -121,7 +121,7 @@ class GaussianAmplitudeReducer(StackReducer):
             m = np.mean(sequence)
             std = np.std(sequence)
             f = np.abs(sequence - m) < self.n_sigma * std
-            if np.sum(f) <= self.min_size:
+            if np.sum(f) < self.min_size:
                 return np.nan
             if np.all(f):
                 break
@@ -210,7 +210,7 @@ class GaussianReducer(StackReducer):
             m = np.mean(sequence)
             std = np.std(sequence)
             f = np.abs(sequence - m) < self.n_sigma * std
-            if np.sum(f) <= self.min_size:
+            if np.sum(f) < self.min_size:
                 return np.nan
             if np.all(f):
                 break
@@ -278,7 +278,7 @@ class MeanReducer(StackReducer):
             m = np.mean(sequence)
             std = np.std(sequence)
             f = np.abs(sequence - m) < self.n_sigma * std
-            if np.sum(f) <= self.min_size:
+            if np.sum(f) < self.min_size:
                 return np.nan
             if np.all(f):
                 break
@@ -318,7 +318,7 @@ class SkewGaussianReducer(StackReducer):
             m = np.mean(sequence)
             std = np.std(sequence)
             f = np.abs(sequence - m) < self.n_sigma * std
-            if np.sum(f) <= self.min_size:
+            if np.sum(f) < self.min_size:
                 return np.nan
             if np.all(f):
                 break
