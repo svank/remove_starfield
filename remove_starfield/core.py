@@ -23,6 +23,7 @@ def build_starfield_estimate(
         ra_bounds: Iterable[float]=None,
         dec_bounds: Iterable[float]=None,
         target_mem_usage: float=10,
+        map_scale: float=0.04,
         stack_all: bool=False,
         shuffle: bool=True) -> Starfield:
     """Generate a starfield estimate from a set of images
@@ -78,6 +79,9 @@ def build_starfield_estimate(
         the output map is broken into. Higher values will tend to speed up the
         computation. Actual memory usage will likely be less, unless there is a
         portion of the all-sky map spanned by all the input images.
+    map_scale : ``float``
+        The scale of the output map, in degrees per pixel. (It's the CDELT
+        parameter of the output WCS.)
     stack_all : ``bool``, optional
         For debugging---after the first chunk of the starfield has been
         computed, return the full accumulation array as well as the starfield
@@ -111,15 +115,14 @@ def build_starfield_estimate(
         along the first axis of ``stack``.
     """
     # Create the WCS describing the whole-sky starmap
-    cdelt = 0.04
-    shape = [int(floor(180/cdelt)), int(floor(360/cdelt))]
+    shape = [int(floor(180/map_scale)), int(floor(360/map_scale))]
     starfield_wcs = WCS(naxis=2)
     # n.b. it seems the RA wrap point is chosen so there's 180 degrees included
     # on either side of crpix
     crpix = [shape[1]/2 + .5, shape[0]/2 + .5]
     starfield_wcs.wcs.crpix = crpix
     starfield_wcs.wcs.crval = 180, 0
-    starfield_wcs.wcs.cdelt = cdelt, cdelt
+    starfield_wcs.wcs.cdelt = map_scale, map_scale
     starfield_wcs.wcs.ctype = 'RA---CAR', 'DEC--CAR'
     starfield_wcs.wcs.cunit = 'deg', 'deg'
     
