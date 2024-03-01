@@ -36,12 +36,15 @@ class Starfield:
             Whether to overwrite the file if it already exists
         """
         with h5py.File(path, 'w' if overwrite else 'w-') as f:
-            f.create_dataset("starfield", data=self.starfield)
+            f.create_dataset("starfield", data=self.starfield,
+                             compression="gzip", shuffle=True)
             f.create_dataset("wcs", data=self.wcs.to_header_string())
             if self.frame_count is not None:
-                f.create_dataset("frame_count", data=self.frame_count)
+                f.create_dataset("frame_count", data=self.frame_count,
+                                 compression="gzip", shuffle=True)
             if self.attribution is not None:
-                f.create_dataset("attribution", data=self.attribution)
+                f.create_dataset("attribution", data=self.attribution,
+                                 compression="gzip", shuffle=True)
     
     @classmethod
     def load(cls, path: str):
