@@ -4,6 +4,8 @@ from astropy.io import fits
 from astropy.wcs import WCS
 import numpy as np
 
+from . import utils
+
 
 @dataclass
 class ImageHolder():
@@ -39,17 +41,6 @@ class ImageProcessor():
     `postprocess_starfield_estimate`, and the result is subtracted from the
     input image.
     """
-    def __init__(self, wcs_key=' '):
-        """Instantiate a basic, FITS-reading processor
-
-        Parameters
-        ----------
-        wcs_key : ``str``, optional
-            If there are multiple sets of WCS keys in the FITS header, use this
-            to indicate which one to load.
-        """
-        self.wcs_key = wcs_key
-    
     def load_image(self, filename: str) -> ImageHolder:
         """Loads an image from a given filename
 
@@ -65,11 +56,7 @@ class ImageProcessor():
             information that should be stored for later steps
         """
         with fits.open(filename) as hdul:
-            hdu = 1 if hdul[0].data is None else 0
-            hdr = hdul[hdu].header
-            wcs = WCS(hdr, hdul, key=self.wcs_key)
-            image = hdul[hdu].data
-        
+            image, wcs = utils.find_data_and_celestial_wcs(hdul)
         return ImageHolder(image, wcs)
         
     def preprocess_image(self, image_holder: ImageHolder) -> ImageHolder:

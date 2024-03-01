@@ -13,12 +13,7 @@ def test_ImageProcessor_wcs_key():
         'WISPR_files_with_data_half_size_L3', '20190405',
         'psp_L3_wispr_20190405T010554_V3_1221.fits')
     
-    processor = ImageProcessor(wcs_key=' ')
-    holder = processor.load_image(file)
-    
-    assert list(holder.wcs.wcs.ctype) == ['HPLN-ZPN', 'HPLT-ZPN']
-    
-    processor = ImageProcessor(wcs_key='A')
+    processor = ImageProcessor()
     holder = processor.load_image(file)
     
     assert list(holder.wcs.wcs.ctype) == ['RA---ZPN', 'DEC--ZPN']

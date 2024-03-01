@@ -201,15 +201,7 @@ def find_expected_stars_in_frame(input, dim_cutoff=8, bright_cutoff=2,
     
     if isinstance(input, str):
         with fits.open(input) as hdul:
-            hdr = hdul[0].header
-            # Search for a celestial WCS
-            for key in ' ABCDEFGHIJKLMNOPQRSTUVWXYZ':
-                wcs = WCS(hdr, hdul, key=key)
-                c1, c2 = sorted(wcs.wcs.ctype)
-                if c1[:3] == 'DEC' and c2[:2] == 'RA':
-                    break
-            else:
-                raise RuntimeError("Could not find RA/DEC coordinates")
+            wcs = utils.find_data_and_celestial_wcs(hdul, data=False)
     else:
         wcs = input
     

@@ -192,3 +192,34 @@ def data_path(*segments):
     Returns the path to the package data directory, with segments appended
     """
     return os.path.join(os.path.dirname(__file__), 'data', *segments)
+
+
+def find_data_and_celestial_wcs(hdul, data=True, wcs=True, header=False):
+    # If the FITS file is compressed, the first HDU has no data. Search for the
+    # first non-empty hdu
+    hdu = 0
+    while hdul[hdu].data is None:
+        hdu += 1
+
+    if wcs:
+        hdr = hdul[hdu].header
+        # Search for a celestial WCS
+        for key in ' ABCDEFGHIJKLMNOPQRSTUVWXYZ':
+            found_wcs = WCS(hdr, hdul, key=key)
+            ctypes = sorted(found_wcs.wcs.ctype)
+            ctypes = [c[:3] for c in ctypes]
+            if 'DEC' in ctypes and 'RA-' in ctypes:
+                break
+        else:
+            raise ValueError("No celestial WCS found")
+    
+    ret = []
+    if data:
+        ret.append(hdul[hdu].data)
+    if wcs:
+        ret.append(found_wcs)
+    if header:
+        ret.append(hdul[hdu].header)
+    if len(ret) == 1:
+        return ret[0]
+    return ret

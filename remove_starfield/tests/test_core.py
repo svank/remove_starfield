@@ -29,8 +29,7 @@ def _calc_starfield(target_mem_usage, shuffle=True):
                 dec_bounds=(-19, 24), ra_bounds=(149, 188),
                 map_scale=.2, target_mem_usage=target_mem_usage,
                 shuffle=shuffle,
-                reducer=remove_starfield.reducers.GaussianReducer(min_size=40),
-                processor=remove_starfield.ImageProcessor('A'))
+                reducer=remove_starfield.reducers.GaussianReducer(min_size=40))
     
     return starfield
 

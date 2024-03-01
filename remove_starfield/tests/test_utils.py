@@ -1,7 +1,9 @@
 from copy import deepcopy
 
 from astropy.wcs import WCS
-import pytest
+import numpy as np
+from astropy.io import fits
+from astropy.wcs import WCS
 
 from .. import utils
 
@@ -129,3 +131,19 @@ def test_find_collective_bounds():
     bounds = utils.find_collective_bounds(wcs_in, wcs_out,
             trim=(1, 2, 4, 5))
     assert bounds == (1, 8, 4, 7)
+
+
+def test_find_data_and_celestial_wcs():
+    file = utils.test_data_path(
+        'WISPR_files_preprocessed_quarter_size_L3',
+        'psp_L3_wispr_20221206T093017_V1_1221.fits')
+    
+    with fits.open(file) as hdul:
+        data, wcs, hdr = utils.find_data_and_celestial_wcs(hdul, header=True)
+    assert isinstance(data, np.ndarray)
+    assert isinstance(wcs, WCS)
+    assert isinstance(hdr, fits.Header)
+    
+    assert list(wcs.wcs.ctype) == ['RA---ZPN', 'DEC--ZPN']
+    assert data.size > 0
+    assert len(data.shape) == 2
