@@ -15,7 +15,7 @@ def starfield():
 def _calc_starfield(target_mem_usage, shuffle=True):
     dir = remove_starfield.utils.test_data_path(
         'WISPR_files_preprocessed_quarter_size_L3')
-    files = os.listdir(dir)
+    files = sorted(os.listdir(dir))
     files = [os.path.join(dir, file) for file in files]
     
     with warnings.catch_warnings():
