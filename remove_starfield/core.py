@@ -157,7 +157,7 @@ def build_starfield_estimate(
         # Only process every 15th file to speed this up a bit, on the assumption
         # that the on-sky position varies slowly through the image sequence.
         bounds = utils.find_collective_bounds(
-            files[::15], starfield_wcs, processor)
+            files[::15], starfield_wcs, processor=processor)
         # Apply default dec bounds to the output starfield, based on the
         # declination values covered by the input images.
         shape[0] -= shape[0] - bounds[3]

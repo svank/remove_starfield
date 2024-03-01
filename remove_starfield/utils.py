@@ -50,7 +50,8 @@ def find_collective_bounds(wcses, wcs_target, trim=(0, 0, 0, 0),
     
     bounds = []
     for h, t in zip(wcses, trim):
-        bounds += [find_bounds(hdr, wcs_target, trim=t) for hdr in h]
+        bounds += [find_bounds(hdr, wcs_target, trim=t, processor=processor)
+                   for hdr in h]
     bounds = np.array(bounds).T
     return (np.min(bounds[0]), np.max(bounds[1]),
             np.min(bounds[2]), np.max(bounds[3]))
