@@ -174,7 +174,9 @@ def build_starfield_estimate(
     # of input files.
     size_of_pixel = np.empty(1).dtype.itemsize
     size_of_column = size_of_pixel * shape[0] * len(files)
-    stride = target_mem_usage * 1024**3 // size_of_column
+    stride = int(target_mem_usage * 1024**3 // size_of_column)
+    if stride > shape[1]:
+        stride = shape[1]
     
     n_chunks = ceil(shape[1] / stride)
     if stack_all:
