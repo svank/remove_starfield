@@ -85,8 +85,10 @@ def find_bounds(wcs, wcs_target, trim=(0, 0, 0, 0),
         passed in for ``wcs``.
     world_coord_bounds : ``list``
         Edge pixels of the image that fall outside these world coordinates are
-        ignored. Must be a list of four values ``[xmin, xmax, ymin, ymax]``.
-        Any value can be ``None`` to not provide a bound.
+        ignored. Must be a list of four values ``[RAmin, RAmax, Decmin, Decmax]``.
+        Any value can be ``None`` to not provide a bound. The RA bounds are
+        used for find the y bounds, and the dec bounds are separately used for
+        finding the x bounds.
     
     Returns
     -------
@@ -117,8 +119,8 @@ def find_bounds(wcs, wcs_target, trim=(0, 0, 0, 0),
         np.full(right - left, top - 1),
         np.arange(top - 1, bottom - 1, -1)))
     
-    lon, lat = wcs.all_pix2world(xs, ys, 0)
-    assert not np.any(np.isnan(lon)) and not np.any(np.isnan(lat))
+    ra, dec = wcs.pixel_to_world_values(xs, ys)
+    assert not np.any(np.isnan(ra)) and not np.any(np.isnan(dec))
     
     if world_coord_bounds is not None:
         assert len(world_coord_bounds) == 4
@@ -130,16 +132,19 @@ def find_bounds(wcs, wcs_target, trim=(0, 0, 0, 0),
             world_coord_bounds[1] = np.inf
         if world_coord_bounds[3] is None:
             world_coord_bounds[3] = np.inf
-        f = ( (world_coord_bounds[0] <= lon)
-            * (lon <= world_coord_bounds[1])
-            * (world_coord_bounds[2] <= lat)
-            * (lat <= world_coord_bounds[3]))
-        if not np.any(f):
+        ra_bounds = world_coord_bounds[0:2]
+        dec_bounds = world_coord_bounds[2:4]
+        f_for_x = (dec_bounds[0] <= dec) * (dec <= dec_bounds[1])
+        f_for_y = (ra_bounds[0] <= ra) * (ra <= ra_bounds[1])
+        if not np.any(f_for_x + f_for_y):
             return None
-        lon = lon[f]
-        lat = lat[f]
+    else:
+        f_for_x = np.ones(len(ra), dtype=bool)
+        f_for_y = f_for_x
     
-    cx, cy = wcs_target.all_world2pix(lon, lat, 0)
+    cx, cy = wcs_target.world_to_pixel_values(ra, dec)
+    cx = cx[f_for_x]
+    cy = cy[f_for_y]
     
     return (int(np.floor(np.min(cx))),
             int(np.ceil(np.max(cx))),

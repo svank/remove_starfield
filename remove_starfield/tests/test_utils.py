@@ -44,31 +44,33 @@ def test_find_bounds_coord_bounds():
     wcs_in.wcs.crpix = 1, 1
     # Add an offset to avoid anything landing right at pixel boundaries and so
     # having to care about floating-point error
-    wcs_in.wcs.crval = 0.1, 0.1
+    wcs_in.wcs.crval = 8.1, 0.1
     wcs_in.wcs.cdelt = 1, 1
+    wcs_in.wcs.pc = [[np.cos(np.pi/4), -np.sin(np.pi/4)],
+                     [np.sin(np.pi/4), np.cos(np.pi/4)]]
     wcs_in.wcs.ctype = "HPLN-CAR", "HPLT-CAR"
     
     wcs_in.pixel_shape = (10, 12)
     
     bounds = utils.find_bounds(
-            wcs_in, wcs_out, world_coord_bounds=[1, 5, 2, 6])
+            wcs_in, wcs_out, world_coord_bounds=[None, None, None, None])
+    
+    assert bounds == (0, 15, 0, 15)
+    
+    bounds = utils.find_bounds(
+            wcs_in, wcs_out, world_coord_bounds=[31, 35, 32, 36])
     
     assert bounds is None
     
     bounds = utils.find_bounds(
             wcs_in, wcs_out, world_coord_bounds=[1, 5, None, None])
     
-    assert bounds == (1, 5, 0, 12)
+    assert bounds == (0, 15, 3, 13)
     
     bounds = utils.find_bounds(
             wcs_in, wcs_out, world_coord_bounds=[None, None, 2, 6])
     
-    assert bounds == (0, 10, 2, 6)
-    
-    bounds = utils.find_bounds(
-            wcs_in, wcs_out, world_coord_bounds=[None, 4, None, 6])
-    
-    assert bounds == (0, 4, 0, 6)
+    assert bounds == (2, 14, 0, 15)
 
 
 def test_find_collective_bounds():
