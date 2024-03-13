@@ -183,16 +183,18 @@ the misalignment between PSP's orbital plane and the Earth axis---and therefore
 the RA/Dec equator) and a gap (reflecting the portion of each PSP orbit in
 which WISPR is not imaging). The Milky Way can be seen clearly.
 
-Three main artifacts are present:
-* At the left-hand edge of the gap, significant coronal signals can be seen, as
-those coordinates are only ever imaged very close to the Sun, right before each
-WISPR image sequence ends.
+Two main artifacts are present:
+
+* At the left-hand edge of the gap, significant coronal signals can be seen, 
+  as those coordinates are only ever imaged very close to the Sun, 
+  right before each WISPR image sequence ends.
+
 * Stretching through the entire sequence about a third of the way down from the
-top of the imaged region is a band of dark and light streaks. This is along the
-PSP orbital plane which is Venus's orbital plane and is close to the solar
-equatorial plane. This ensures a persistent presence of foreground signals,
-such as the Venus orbital dust ring and the heliospheric plasma sheet, which in
-turn leave artifacts in the background estimate.
+  top of the imaged region is a band of dark and light streaks. This is along the
+  PSP orbital plane which is Venus's orbital plane and is close to the solar 
+  equatorial plane. This ensures a persistent presence of foreground signals,
+  such as the Venus orbital dust ring and the heliospheric plasma sheet, which in
+  turn leave artifacts in the background estimate.
 
 Subtracting images
 ------------------
