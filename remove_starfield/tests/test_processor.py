@@ -3,8 +3,8 @@ from .. import utils
 
 
 def test_Image_Holder():
-    ih = ImageHolder(image='image', wcs='wcs')
-    assert ih.image == 'image'
+    ih = ImageHolder(data='image', wcs='wcs')
+    assert ih.data == 'image'
     assert ih.wcs == 'wcs'
 
 
@@ -29,10 +29,10 @@ def test_ImageProcessor_passthroughs():
     holder2 = processor.preprocess_image(holder)
     assert holder2 is holder
     
-    post_img = processor.postprocess_image(holder.image, holder.wcs, holder)
-    assert post_img is holder.image
+    post_img = processor.postprocess_image(holder.data, holder.wcs, holder)
+    assert post_img is holder.data
     
     post_starfield = processor.postprocess_starfield_estimate(
-        holder.image, holder)
-    assert post_starfield is holder.image
+        holder.data, holder)
+    assert post_starfield is holder.data
     
