@@ -16,7 +16,7 @@ class ImageHolder():
     attributes of `ImageHolder` instances to carry necessary information
     through the load -> preprocess -> postprocess chain.
     """
-    image: np.ndarray
+    data: np.ndarray
     wcs: WCS
 
 

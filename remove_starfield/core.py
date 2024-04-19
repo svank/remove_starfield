@@ -361,7 +361,7 @@ def _process_file(args):
     swcs = starfield_wcs[ymin:ymax, xmin:xmax]
     
     output = reproject.reproject_adaptive(
-        (image_holder.image, image_holder.wcs), swcs, (ymax-ymin, xmax-xmin),
+        (image_holder.data, image_holder.wcs), swcs, (ymax - ymin, xmax - xmin),
         return_footprint=False, roundtrip_coords=False,
         boundary_mode='strict',
         conserve_flux=True,

@@ -9,6 +9,7 @@ import numpy as np
 import reproject
 
 from . import ImageProcessor, SubtractedImage, utils
+from .processor import ImageHolder
 
 
 @dataclass
@@ -241,7 +242,7 @@ class Starfield:
         return im
     
     def subtract_from_image(self,
-                            file : str,
+                            file: str | ImageHolder,
                             processor: ImageProcessor=ImageProcessor()):
         """Subtracts this starfield from an image
         
@@ -252,7 +253,7 @@ class Starfield:
 
         Parameters
         ----------
-        file : ``str``
+        file : ``str`` or ImageHolder or object with data and wcs attrs
             The input file from which to remove stars
         processor : `ImageProcessor`, optional
             An `ImageProcessor` to load the file and pre-process the file.
@@ -262,9 +263,15 @@ class Starfield:
         subtracted : `SubtractedImage`
             A container class storing the subtracted image and all inputs
         """
-        image_holder = processor.load_image(file)
+        if isinstance(file, str):
+            image_holder = processor.load_image(file)
+        elif hasattr(file, "wcs") and hasattr(file, "data"):  # it's like an ImageHolder
+            image_holder = file
+        else:
+            raise TypeError("Input file must be a str or an object with `data` and `wcs` attrs")
+
         image_holder = processor.preprocess_image(image_holder)
-        input_data = image_holder.image
+        input_data = image_holder.data
         input_wcs = image_holder.wcs
         
         # Project the starfield into the input image's frame
