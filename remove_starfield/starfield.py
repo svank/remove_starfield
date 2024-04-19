@@ -14,7 +14,7 @@ from .processor import ImageHolder
 
 @dataclass
 class Starfield:
-    """Class representing an estinated, all-sky background map"""
+    """Class representing an estimated, all-sky background map"""
     starfield: np.ndarray
     """The all-sky map"""
     wcs: WCS
