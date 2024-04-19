@@ -253,7 +253,7 @@ class Starfield:
 
         Parameters
         ----------
-        file : ``str`` or ImageHolder
+        file : ``str`` or ImageHolder or object with data and wcs attrs
             The input file from which to remove stars
         processor : `ImageProcessor`, optional
             An `ImageProcessor` to load the file and pre-process the file.
@@ -265,10 +265,10 @@ class Starfield:
         """
         if isinstance(file, str):
             image_holder = processor.load_image(file)
-        elif isinstance(file, ImageHolder):
+        elif hasattr(file, "wcs") and hasattr(file, "data"):  # it's like an ImageHolder
             image_holder = file
         else:
-            raise TypeError("Input file must be a str or ImageHolder")
+            raise TypeError("Input file must be a str or an object with `data` and `wcs` attrs")
 
         image_holder = processor.preprocess_image(image_holder)
         input_data = image_holder.data
