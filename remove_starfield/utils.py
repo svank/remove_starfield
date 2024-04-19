@@ -136,7 +136,7 @@ def find_bounds(wcs, wcs_target, trim=(0, 0, 0, 0),
         dec_bounds = world_coord_bounds[2:4]
         f_for_x = (dec_bounds[0] <= dec) * (dec <= dec_bounds[1])
         f_for_y = (ra_bounds[0] <= ra) * (ra <= ra_bounds[1])
-        if not np.any(f_for_x + f_for_y):
+        if not np.any(f_for_x) or not np.any(f_for_y):
             return None
     else:
         f_for_x = np.ones(len(ra), dtype=bool)
