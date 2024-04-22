@@ -27,3 +27,19 @@ def test_subtracted_image_plot_comparison(subtracted_image):
 def test_subtracted_image_plot_comparison_bwr(subtracted_image):
     subtracted_image.plot_comparison(bwr=True, vmin=-3e-12, vmax=3e-12)
     return plt.gcf()
+
+
+def test_subtracted_image_save(tmp_path, subtracted_image):
+    test_path = tmp_path / 'test_image.fits'
+    subtracted_image.save(test_path)
+    saved = fits.getdata(test_path)
+    np.testing.assert_array_equal(saved, subtracted_image.subtracted)
+    actual_header = fits.getheader(test_path)
+    del actual_header['HISTORY']
+    expected_header = fits.Header(subtracted_image.meta)
+    del expected_header['HISTORY']
+    assert actual_header == expected_header
+    
+    with pytest.raises(OSError, match='.*already exists.*'):
+        subtracted_image.save(test_path)
+    subtracted_image.save(test_path, overwrite=True)

@@ -18,6 +18,7 @@ class ImageHolder():
     """
     data: np.ndarray
     wcs: WCS
+    meta: dict | fits.Header
 
 
 class ImageProcessor():
@@ -56,8 +57,9 @@ class ImageProcessor():
             information that should be stored for later steps
         """
         with fits.open(filename) as hdul:
-            image, wcs = utils.find_data_and_celestial_wcs(hdul)
-        return ImageHolder(image, wcs)
+            image, wcs, header = utils.find_data_and_celestial_wcs(
+                hdul, data=True, wcs=True, header=True)
+        return ImageHolder(image, wcs, header)
         
     def preprocess_image(self, image_holder: ImageHolder) -> ImageHolder:
         """Processes an image array before it is reprojected and stacked

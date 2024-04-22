@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "remove_starfield"
-version = "0.0.1"
+dynamic = ["version"]
 dependencies = [
 	"astropy >= 5.0",
 	"h5py >= 3.10",
@@ -30,3 +30,6 @@ test = [
 	"pytest-mock >= 3.7",
 	"pytest-mpl >= 0.16",
 ]
+
+[tool.setuptools.dynamic]
+version = {attr = "remove_starfield.__version__"}

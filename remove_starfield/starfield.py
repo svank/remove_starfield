@@ -304,4 +304,5 @@ class Starfield:
             starfield_sample=starfield_sample,
             blurred_data=img_r,
             wcs=input_wcs,
+            meta=image_holder.meta,
         )

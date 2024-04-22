@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from . import utils
+import remove_starfield
 
 
 @dataclass
@@ -18,6 +19,8 @@ class SubtractedImage:
     """The blurred source data with the starfield estimate removed"""
     wcs: WCS
     """The WCS which describes all of the data arrays"""
+    meta: dict | fits.Header
+    """The header information from the input file"""
     source_file: str
     """The file path from which the image-to-be-subtracted was loaded"""
     source_data: np.ndarray
@@ -45,7 +48,10 @@ class SubtractedImage:
             Whether to overwrite any existing file at the destination path, by
             default False.
         """
-        fits.writeto(filename, self.subtracted, self.wcs.to_header(),
+        header = fits.Header(self.meta)
+        header['HISTORY'] = ("Starfield subtracted by remove_starfield "
+                             f"{remove_starfield.__version__}")
+        fits.writeto(filename, self.subtracted, header,
                      overwrite=overwrite)
     
     def plot_comparison(self, vmin='auto', vmax='auto', pmin=1, pmax=99,

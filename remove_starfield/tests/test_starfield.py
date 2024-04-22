@@ -45,16 +45,17 @@ def test_starfield_subtract_from_image_ImageHolder(starfield):
     wcs = WCS(hdr, key='A')
     
     class ImageHolderLike:
-        def __init__(self, data, wcs):
+        def __init__(self, data, wcs, meta):
             self.data = data
             self.wcs = wcs
+            self.meta = meta
     
     class ImageProcessorCantLoad(remove_starfield.ImageProcessor):
         def load_image(self, filename):
             raise RuntimeError("This should not run")
     
     subtracted = starfield.subtract_from_image(
-        ImageHolderLike(data, wcs),
+        ImageHolderLike(data, wcs, hdr),
         processor=ImageProcessorCantLoad())
     
     subtracted_from_string = starfield.subtract_from_image(test_file)

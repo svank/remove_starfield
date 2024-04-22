@@ -3,9 +3,10 @@ from .. import utils
 
 
 def test_Image_Holder():
-    ih = ImageHolder(data='image', wcs='wcs')
+    ih = ImageHolder(data='image', wcs='wcs', meta='meta')
     assert ih.data == 'image'
     assert ih.wcs == 'wcs'
+    assert ih.meta == 'meta'
 
 
 def test_ImageProcessor_wcs_key():
