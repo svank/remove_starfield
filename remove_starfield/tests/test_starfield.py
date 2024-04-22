@@ -1,3 +1,6 @@
+from astropy.io import fits
+from astropy.wcs import WCS
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
@@ -24,6 +27,58 @@ def test_starfield_subtract_from_image(starfield):
     
     subtracted = starfield.subtract_from_image(test_file)
     
+    assert subtracted.source_file == test_file
+    
     return np.stack((
-        subtracted.blurred_data, subtracted.starfield_sample,
-        subtracted.subtracted))
+        subtracted.source_data, subtracted.blurred_data,
+        subtracted.starfield_sample, subtracted.subtracted))
+
+
+def test_starfield_subtract_from_image_ImageHolder(starfield):
+    # Ensure we get the same result when passing in the
+    # image-to-be-subtracted-from as a file path or an ImageHolder
+    test_file = remove_starfield.utils.test_data_path(
+        'WISPR_files_preprocessed_quarter_size_L3',
+        'psp_L3_wispr_20221206T223017_V1_1221.fits')
+    
+    data, hdr = fits.getdata(test_file, header=True)
+    wcs = WCS(hdr, key='A')
+    
+    class ImageHolderLike:
+        def __init__(self, data, wcs):
+            self.data = data
+            self.wcs = wcs
+    
+    class ImageProcessorCantLoad(remove_starfield.ImageProcessor):
+        def load_image(self, filename):
+            raise RuntimeError("This should not run")
+    
+    subtracted = starfield.subtract_from_image(
+        ImageHolderLike(data, wcs),
+        processor=ImageProcessorCantLoad())
+    
+    subtracted_from_string = starfield.subtract_from_image(test_file)
+    
+    np.testing.assert_array_equal(
+        subtracted.subtracted, subtracted_from_string.subtracted)
+
+
+@pytest.mark.mpl_image_compare
+def test_starfield_plot(starfield):
+    fig, ax = plt.subplots(1, 1)
+    starfield.plot(ax, grid=True)
+    return fig
+
+
+@pytest.mark.mpl_image_compare
+def test_starfield_plot_frame_count(starfield):
+    fig, ax = plt.subplots(1, 1)
+    starfield.plot_frame_count(ax, grid=False)
+    return fig
+
+
+@pytest.mark.mpl_image_compare
+def test_starfield_plot_attribution(starfield):
+    fig, ax = plt.subplots(1, 1)
+    starfield.plot_attribution(ax, grid=False)
+    return fig

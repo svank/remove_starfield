@@ -265,10 +265,12 @@ class Starfield:
         """
         if isinstance(file, str):
             image_holder = processor.load_image(file)
-        elif hasattr(file, "wcs") and hasattr(file, "data"):  # it's like an ImageHolder
+        elif hasattr(file, "wcs") and hasattr(file, "data"):
+            # it's like an ImageHolder
             image_holder = file
         else:
-            raise TypeError("Input file must be a str or an object with `data` and `wcs` attrs")
+            raise TypeError("Input file must be a str or an object with `data` "
+                            "and `wcs` attrs")
 
         image_holder = processor.preprocess_image(image_holder)
         input_data = image_holder.data
