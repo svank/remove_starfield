@@ -1,4 +1,4 @@
 Getting Started
 ===============
 
-In the future, you will be able to run ``pip install remove_starfield``.
+You can install this package with ``pip install remove_starfield``.
