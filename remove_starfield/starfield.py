@@ -293,10 +293,12 @@ class Starfield:
         # these two blurs into one round of blurring
         img_r = reproject.reproject_adaptive(
             (input_data, input_wcs), input_wcs, input_data.shape,
-            roundtrip_coords=False, return_footprint=False, conserve_flux=True)
+            roundtrip_coords=False, return_footprint=False, conserve_flux=True,
+            boundary_mode='ignore')
         img_r = reproject.reproject_adaptive(
             (img_r, input_wcs), input_wcs, input_data.shape,
-            roundtrip_coords=False, return_footprint=False, conserve_flux=True)
+            roundtrip_coords=False, return_footprint=False, conserve_flux=True,
+            boundary_mode='ignore')
         
         return SubtractedImage(
             source_file=file,
