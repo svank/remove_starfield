@@ -25,7 +25,8 @@ def build_starfield_estimate(
         target_mem_usage: float=10,
         map_scale: float=0.04,
         stack_all: bool=False,
-        shuffle: bool=True) -> Starfield:
+        shuffle: bool=True,
+        n_procs: int=None) -> Starfield:
     """Generate a starfield estimate from a set of images
     
     This is generally a slow, high-memory-use function, as each image must be
@@ -97,6 +98,9 @@ def build_starfield_estimate(
         within the list of input images. To ensure a more even distribution of
         work, the list of input images is randomly shuffled. This can be
         disabled for debugging purposes.
+    n_procs : ``int``, optional
+        The number of core to use for multi-processing. If unset, the value
+        returned by ``os.cpu_count``.
 
     Returns
     -------
@@ -197,8 +201,8 @@ def build_starfield_estimate(
     # This is the size of the "working space" array, where we accumulate the
     # values from every image at every pixel in this chunk of the starfield.
     cutout_shape = (len(files), shape[0], stride)
-                                                
-    with multiprocessing.Pool() as p:
+    
+    with multiprocessing.Pool(processes=n_procs) as p:
         # Make some memory allocations after the fork
         
         # This is the big honking array that holds a bunch of reprojected
