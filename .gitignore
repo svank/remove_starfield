@@ -96,3 +96,4 @@ venv.bak/
 docs/api
 
 .vscode
+.idea
