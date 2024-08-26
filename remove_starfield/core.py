@@ -55,9 +55,9 @@ def build_starfield_estimate(
         If True, this function also returns an attribution array. For each
         pixel in the output skymap, this array contains an index into the list
         of filenames, indicating which file contributed the value selected for
-        the output map. (In practice, the output values are interpolated
-        between the two input values closest to the exact percentile location,
-        and it's the closest of those values that is called the source.)
+        the output map. (In practice, the output value is not exactly any of the
+        input values---it's instead the input file whose value is closest to the
+        output value that is reported.)
     processor : `ImageProcessor`, optional
         An instance of a class providing functions allowing the handling of the
         input images to be customized. This class is responsible for loading
