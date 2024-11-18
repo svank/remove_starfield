@@ -49,9 +49,9 @@ def find_collective_bounds(wcses, wcs_target, trim=(0, 0, 0, 0),
         trim = [trim] * len(wcses)
     
     bounds = []
-    for h, t in zip(wcses, trim):
-        bounds += [find_bounds(hdr, wcs_target, trim=t, processor=processor)
-                   for hdr in h]
+    for w, t in zip(wcses, trim):
+        bounds += [find_bounds(wcs, wcs_target, trim=t, processor=processor)
+                   for wcs in w]
     bounds = np.array(bounds).T
     return (np.min(bounds[0]), np.max(bounds[1]),
             np.min(bounds[2]), np.max(bounds[3]))
@@ -98,7 +98,7 @@ def find_bounds(wcs, wcs_target, trim=(0, 0, 0, 0),
         straddles the output's wrap point.
     """
     # Parse inputs
-    if not isinstance(wcs, WCS):
+    if isinstance(wcs, str):
         ih = processor.load_image(wcs)
         wcs = ih.wcs
     
@@ -150,7 +150,6 @@ def find_bounds(wcs, wcs_target, trim=(0, 0, 0, 0),
             int(np.ceil(np.max(cx))),
             int(np.floor(np.min(cy))),
             int(np.ceil(np.max(cy))))
-
 
 
 def prepare_axes(ax, wcs=None, grid=False):

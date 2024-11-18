@@ -338,7 +338,7 @@ def _process_file(args):
     ra_stop, dec_stop = starfield_wcs.pixel_to_world_values(
         shape[1] - 1, shape[0] - 1)
     bounds = utils.find_bounds(
-        image_holder.wcs, starfield_wcs,
+        image_holder.wcs, starfield_wcs, processor=processor,
         world_coord_bounds=[ra_start - cdelt[0], ra_stop + cdelt[0],
                             dec_start - cdelt[1], dec_stop + cdelt[1]])
     
