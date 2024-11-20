@@ -48,7 +48,7 @@ class Starfield:
                                  compression="gzip", shuffle=True)
     
     @classmethod
-    def load(cls, path: str):
+    def load(cls, path: str) -> "Starfield":
         """Loads a `Starfield` that was previously saved to disk
 
         Parameters
@@ -243,7 +243,8 @@ class Starfield:
     
     def subtract_from_image(self,
                             file: str | ImageHolder,
-                            processor: ImageProcessor=ImageProcessor()):
+                            processor: ImageProcessor=ImageProcessor()
+                            ) -> SubtractedImage:
         """Subtracts this starfield from an image
         
         The provided image file is loaded and pre-processed, and then this
