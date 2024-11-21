@@ -9,6 +9,7 @@ import numpy as np
 import reproject
 
 from . import ImageProcessor, SubtractedImage, utils
+from .no_op_wcs import NoOpWCS
 from .processor import ImageHolder
 
 
@@ -292,12 +293,13 @@ class Starfield:
         
         # TODO: Figure out if this is exactly correct, and if we can combine
         # these two blurs into one round of blurring
+        no_op_wcs = NoOpWCS(input_wcs)
         img_r = reproject.reproject_adaptive(
-            (input_data, input_wcs), input_wcs, input_data.shape,
+            (input_data, no_op_wcs), no_op_wcs, input_data.shape,
             roundtrip_coords=False, return_footprint=False, conserve_flux=True,
             boundary_mode='ignore')
         img_r = reproject.reproject_adaptive(
-            (img_r, input_wcs), input_wcs, input_data.shape,
+            (img_r, no_op_wcs), no_op_wcs, input_data.shape,
             roundtrip_coords=False, return_footprint=False, conserve_flux=True,
             boundary_mode='ignore')
         

@@ -17,13 +17,15 @@ def subtracted_image(starfield):
     return starfield.subtract_from_image(test_file)
 
 
-@pytest.mark.mpl_image_compare
+# pytest-mpl's default style causes wacky artifacts on the blurred input data
+@pytest.mark.mpl_image_compare(style="default")
 def test_subtracted_image_plot_comparison(subtracted_image):
     subtracted_image.plot_comparison()
     return plt.gcf()
 
 
-@pytest.mark.mpl_image_compare
+# pytest-mpl's default style causes wacky artifacts on the blurred input data
+@pytest.mark.mpl_image_compare(style="default")
 def test_subtracted_image_plot_comparison_bwr(subtracted_image):
     subtracted_image.plot_comparison(bwr=True, vmin=-3e-12, vmax=3e-12)
     return plt.gcf()
