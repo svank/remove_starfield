@@ -293,7 +293,7 @@ class Starfield:
         
         # TODO: Figure out if this is exactly correct, and if we can combine
         # these two blurs into one round of blurring
-        no_op_wcs = NoOpWCS(input_wcs)
+        no_op_wcs = NoOpWCS(input_wcs, input_data)
         img_r = reproject.reproject_adaptive(
             (input_data, no_op_wcs), no_op_wcs, input_data.shape,
             roundtrip_coords=False, return_footprint=False, conserve_flux=True,

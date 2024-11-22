@@ -10,8 +10,13 @@ class NoOpWCS(BaseLowLevelWCS):
     projections, we have to do a lot of coordinate computations for nothing.
     This "WCS" avoids that.
     """
-    def __init__(self, input_wcs):
+    def __init__(self, input_wcs, input_data_array=None):
         self.input_wcs = input_wcs
+        if input_data_array is None:
+            self.input_data_pixel_shape = input_wcs.pixel_shape[-2:]
+        else:
+            self.input_data_pixel_shape = (input_data_array.shape[-1],
+                                           input_data_array.shape[-2])
     
     def pixel_to_world_values(self, *pixel_arrays):
         """ """
@@ -45,7 +50,7 @@ class NoOpWCS(BaseLowLevelWCS):
     
     @property
     def pixel_shape(self):
-        return self.input_wcs.pixel_shape
+        return self.input_data_pixel_shape or self.input_wcs.pixel_shape
     
     @property
     def world_axis_units(self):
