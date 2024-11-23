@@ -1,5 +1,6 @@
+from copy import deepcopy
+
 from astropy.io import fits
-from astropy.wcs import WCS
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
@@ -20,6 +21,17 @@ def subtracted_image(starfield):
 # pytest-mpl's default style causes wacky artifacts on the blurred input data
 @pytest.mark.mpl_image_compare(style="default")
 def test_subtracted_image_plot_comparison(subtracted_image):
+    subtracted_image.plot_comparison()
+    return plt.gcf()
+
+
+# pytest-mpl's default style causes wacky artifacts on the blurred input data
+@pytest.mark.mpl_image_compare(style="default")
+def test_subtracted_image_plot_comparison_no_nans(subtracted_image):
+    subtracted_image = deepcopy(subtracted_image)
+    subtracted_image.source_data = np.nan_to_num(subtracted_image.source_data)
+    subtracted_image.blurred_data = np.nan_to_num(subtracted_image.blurred_data)
+    subtracted_image.subtracted = np.nan_to_num(subtracted_image.subtracted)
     subtracted_image.plot_comparison()
     return plt.gcf()
 

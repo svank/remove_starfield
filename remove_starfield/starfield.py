@@ -1,6 +1,7 @@
 import copy
 from dataclasses import dataclass
 
+import scipy.signal
 from astropy.wcs import WCS
 import h5py
 import matplotlib.colors
@@ -9,7 +10,6 @@ import numpy as np
 import reproject
 
 from . import ImageProcessor, SubtractedImage, utils
-from .no_op_wcs import NoOpWCS
 from .processor import ImageHolder
 
 
@@ -291,23 +291,28 @@ class Starfield:
         # starfield data has (once in the reprojection to build the starfield
         # estimate, again in the reprojection back to this input image's frame)
         
-        # TODO: Figure out if this is exactly correct, and if we can combine
-        # these two blurs into one round of blurring
-        no_op_wcs = NoOpWCS(input_wcs, input_data)
-        img_r = reproject.reproject_adaptive(
-            (input_data, no_op_wcs), no_op_wcs, input_data.shape,
-            roundtrip_coords=False, return_footprint=False, conserve_flux=True,
-            boundary_mode='ignore')
-        img_r = reproject.reproject_adaptive(
-            (img_r, no_op_wcs), no_op_wcs, input_data.shape,
-            roundtrip_coords=False, return_footprint=False, conserve_flux=True,
-            boundary_mode='ignore')
+        # TODO: Figure out if this is exactly correct. This Gaussian blur
+        #  does produce basically exactly what you get from reprojecting the
+        #  image into its own frame, but is that the same as reprojecting it
+        #  into another frame and back?
+        
+        # 1.3 is the default kernel width for reproject_adaptive, and the
+        # sqrt(2) makes this equivalent to two rounds of reprojection/blurring
+        kw = 1.3 * np.sqrt(2)
+        x = np.arange(-2, 3)
+        y = np.arange(-2, 3)
+        xx, yy = np.meshgrid(x, y)
+        kernel = np.exp(-(xx ** 2 + yy ** 2) / kw ** 2 * 2)
+        kernel /= kernel.sum()
+        method = 'auto' if np.all(np.isfinite(input_data)) else 'direct'
+        img_blurred = scipy.signal.convolve(
+            input_data, kernel, mode='same', method=method)
         
         return SubtractedImage(
             source_file=file,
             source_data=input_data,
             starfield_sample=starfield_sample,
-            blurred_data=img_r,
+            blurred_data=img_blurred,
             wcs=input_wcs,
             meta=image_holder.meta,
         )
