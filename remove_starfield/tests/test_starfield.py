@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from astropy.io import fits
 from astropy.wcs import WCS
 import matplotlib.pyplot as plt
@@ -32,6 +34,44 @@ def test_starfield_subtract_from_image(starfield):
     return np.stack((
         subtracted.source_data, subtracted.blurred_data,
         subtracted.starfield_sample, subtracted.subtracted))
+
+
+@pytest.mark.array_compare(file_format='fits',
+                           filename='test_starfield_subtract_from_image.fits')
+def test_starfield_subtract_from_image_3D(starfield):
+    # Ensure we handle multidimensional starfields and images
+    test_file = remove_starfield.utils.test_data_path(
+        'WISPR_files_preprocessed_quarter_size_L3',
+        'psp_L3_wispr_20221206T223017_V1_1221.fits')
+    
+    starfield = deepcopy(starfield)
+    starfield.starfield = np.stack((starfield.starfield, starfield.starfield))
+    
+    data, hdr = fits.getdata(test_file, header=True)
+    wcs = WCS(hdr, key='A')
+    
+    class ImageHolderLike:
+        def __init__(self, data, wcs, meta):
+            self.data = data
+            self.wcs = wcs
+            self.meta = meta
+    
+    stacked_input = ImageHolderLike(np.stack((data, data)), wcs, hdr)
+    
+    subtracted = starfield.subtract_from_image(stacked_input)
+    
+    np.testing.assert_array_equal(
+        subtracted.source_data[0], subtracted.source_data[1])
+    np.testing.assert_array_equal(
+        subtracted.blurred_data[0], subtracted.blurred_data[1])
+    np.testing.assert_array_equal(
+        subtracted.starfield_sample[0], subtracted.starfield_sample[1])
+    np.testing.assert_array_equal(
+        subtracted.subtracted[0], subtracted.subtracted[1])
+    
+    return np.stack((
+        subtracted.source_data[0], subtracted.blurred_data[0],
+        subtracted.starfield_sample[0], subtracted.subtracted[0]))
 
 
 def test_starfield_subtract_from_image_ImageHolder(starfield):
