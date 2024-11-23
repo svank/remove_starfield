@@ -304,13 +304,14 @@ class Starfield:
         xx, yy = np.meshgrid(x, y)
         kernel = np.exp(-(xx ** 2 + yy ** 2) / kw ** 2 * 2)
         kernel /= kernel.sum()
-        method = 'auto' if np.all(np.isfinite(input_data)) else 'direct'
         
         tmp_data = input_data.reshape((-1, *input_data.shape[-2:]))
         img_blurred = np.empty_like(tmp_data)
         for i in range(tmp_data.shape[0]):
+            loop_data = tmp_data[i]
+            method = 'auto' if np.all(np.isfinite(loop_data)) else 'direct'
             img_blurred[i] = scipy.signal.convolve(
-                tmp_data[i], kernel, mode='same', method=method)
+                loop_data, kernel, mode='same', method=method)
         img_blurred = img_blurred.reshape(input_data.shape)
         
         return SubtractedImage(
