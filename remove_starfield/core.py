@@ -22,6 +22,7 @@ def build_starfield_estimate(
         reducer: StackReducer=GaussianReducer(),
         ra_bounds: Iterable[float]=None,
         dec_bounds: Iterable[float]=None,
+        starfield_wcs: WCS=None,
         target_mem_usage: float=10,
         map_scale: float=0.04,
         stack_all: bool=False,
@@ -74,6 +75,10 @@ def build_starfield_estimate(
         all of right ascension, but the input images are used to determine
         appropriate declination bounds (ensuring that all input images are
         contained in the bounds).
+    starfield_WCS : ``WCS``
+        Allows a custom WCS to be specified for the starfield WCS, overriding
+        the default. If set, ``map_scale``, ``ra_bounds`` and ``dec_bounds``
+        will be ignored.
     target_mem_usage : ``float``, optional
         The (approximate) maximum amount of memory to use for the accumulation
         array, as a number of gigabytes. This will determine how many chunks
@@ -118,55 +123,61 @@ def build_starfield_estimate(
         The index in the input file list of the source file for each position
         along the first axis of ``stack``.
     """
-    # Create the WCS describing the whole-sky starmap
-    shape = [int(floor(180/map_scale)), int(floor(360/map_scale))]
-    starfield_wcs = WCS(naxis=2)
-    # n.b. it seems the RA wrap point is chosen so there's 180 degrees included
-    # on either side of crpix
-    crpix = [shape[1]/2 + .5, shape[0]/2 + .5]
-    starfield_wcs.wcs.crpix = crpix
-    starfield_wcs.wcs.crval = 180, 0
-    starfield_wcs.wcs.cdelt = map_scale, map_scale
-    starfield_wcs.wcs.ctype = 'RA---CAR', 'DEC--CAR'
-    starfield_wcs.wcs.cunit = 'deg', 'deg'
-    
-    if ra_bounds is not None:
-        # Apply user-specified RA bounds to the output starfield
-        (x_min, x_max), _ = starfield_wcs.all_world2pix(ra_bounds, [0, 0], 0)
-        x_min = int(x_min)
-        x_max = int(x_max)
-        starfield_wcs = starfield_wcs[:, x_min:x_max+1]
-        x_size = shape[1]
-        x_size -= (x_size - x_max)
-        x_size -= x_min
-        shape[1] = int(x_size)
-    # n.b. Since RA is a periodic coordinates, the notion of bounds gets weird
-    # without special handling, so don't attempt to automatically clamp the
-    # output map in RA.
-    
-    if dec_bounds is not None:
-        # Apply user-specified dec bounds to the output starfield
-        _, (y_min, y_max) = starfield_wcs.all_world2pix([10, 10], dec_bounds, 0)
-        y_min = int(y_min)
-        y_max = int(y_max)
-        starfield_wcs = starfield_wcs[y_min:y_max+1, :]
-        y_size = shape[0]
-        y_size -= (y_size - y_max)
-        y_size -= y_min
-        shape[0] = int(y_size)
+    if starfield_wcs is None:
+        # Create the WCS describing the whole-sky starmap
+        shape = [int(floor(180/map_scale)), int(floor(360/map_scale))]
+        starfield_wcs = WCS(naxis=2)
+        # n.b. it seems the RA wrap point is chosen so there's 180 degrees
+        # included on either side of crpix
+        crpix = [shape[1]/2 + .5, shape[0]/2 + .5]
+        starfield_wcs.wcs.crpix = crpix
+        starfield_wcs.wcs.crval = 180, 0
+        starfield_wcs.wcs.cdelt = map_scale, map_scale
+        starfield_wcs.wcs.ctype = 'RA---CAR', 'DEC--CAR'
+        starfield_wcs.wcs.cunit = 'deg', 'deg'
+        
+        if ra_bounds is not None:
+            # Apply user-specified RA bounds to the output starfield
+            (x_min, x_max), _ = starfield_wcs.all_world2pix(
+                ra_bounds, [0, 0], 0)
+            x_min = int(x_min)
+            x_max = int(x_max)
+            starfield_wcs = starfield_wcs[:, x_min:x_max+1]
+            x_size = shape[1]
+            x_size -= (x_size - x_max)
+            x_size -= x_min
+            shape[1] = int(x_size)
+        # n.b. Since RA is a periodic coordinates, the notion of bounds gets
+        # weird without special handling, so don't attempt to automatically
+        # clamp the output map in RA.
+        
+        if dec_bounds is not None:
+            # Apply user-specified dec bounds to the output starfield
+            _, (y_min, y_max) = starfield_wcs.all_world2pix(
+                [10, 10], dec_bounds, 0)
+            y_min = int(y_min)
+            y_max = int(y_max)
+            starfield_wcs = starfield_wcs[y_min:y_max+1, :]
+            y_size = shape[0]
+            y_size -= (y_size - y_max)
+            y_size -= y_min
+            shape[0] = int(y_size)
+        else:
+            # Figure out how much of the full sky is covered by our set of
+            # images. If we don't go all the way to the celestial poles,
+            # we can limit our declination range and save time & memory.
+            # Only process every 15th file to speed this up a bit, on the
+            # assumption that the on-sky position varies slowly through the
+            # image sequence.
+            bounds = utils.find_collective_bounds(
+                files[::15], starfield_wcs, processor=processor)
+            # Apply default dec bounds to the output starfield, based on the
+            # declination values covered by the input images.
+            shape[0] -= shape[0] - bounds[3]
+            shape[0] -= bounds[2]
+            starfield_wcs = starfield_wcs[bounds[2]:bounds[3]]
     else:
-        # Figure out how much of the full sky is covered by our set of images. If
-        # we don't go all the way to the celestial poles, we can limit our
-        # declination range and save time & memory.
-        # Only process every 15th file to speed this up a bit, on the assumption
-        # that the on-sky position varies slowly through the image sequence.
-        bounds = utils.find_collective_bounds(
-            files[::15], starfield_wcs, processor=processor)
-        # Apply default dec bounds to the output starfield, based on the
-        # declination values covered by the input images.
-        shape[0] -= shape[0] - bounds[3]
-        shape[0] -= bounds[2]
-        starfield_wcs = starfield_wcs[bounds[2]:bounds[3]]
+        shape = starfield_wcs.array_shape
     
     # Allocate this later
     starfields = None
