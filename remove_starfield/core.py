@@ -344,14 +344,27 @@ def _process_file(args):
     image_holder = processor.load_image(fname)
     
     # Identify where this image will fall in the whole-sky map
+    edges_x, edges_y = utils.points_along_edge(shape, trim=[.1, .1, .1, .1],
+                                               n_pts=-1, separate_edges=True)
+    ras, decs = starfield_wcs.pixel_to_world_values(edges_x[3], edges_y[3])
+    ra_start = np.min(ras)
+    
+    ras, decs = starfield_wcs.pixel_to_world_values(edges_x[1], edges_y[1])
+    ra_stop = np.max(ras)
+    ra_stop = utils.wrap_inside_period(ra_stop, ra_start, 360)
+    
+    ras, decs = starfield_wcs.pixel_to_world_values(edges_x[0], edges_y[0])
+    dec_start = np.min(decs)
+    
+    ras, decs = starfield_wcs.pixel_to_world_values(edges_x[2], edges_y[2])
+    dec_stop = np.max(decs)
+
     cdelt = starfield_wcs.wcs.cdelt
-    ra_start, dec_start = starfield_wcs.pixel_to_world_values(0, 0)
-    ra_stop, dec_stop = starfield_wcs.pixel_to_world_values(
-        shape[1] - 1, shape[0] - 1)
     bounds = utils.find_bounds(
         image_holder.wcs, starfield_wcs, processor=processor,
         world_coord_bounds=[ra_start - cdelt[0], ra_stop + cdelt[0],
-                            dec_start - cdelt[1], dec_stop + cdelt[1]])
+                            dec_start - cdelt[1], dec_stop + cdelt[1]],
+        ra_wrap_point=ra_start)
     
     if bounds is None:
         # This image doesn't span the portion of the all-sky map now being

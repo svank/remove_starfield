@@ -58,7 +58,8 @@ def find_collective_bounds(wcses, wcs_target, trim=(0, 0, 0, 0),
 
 
 def find_bounds(wcs, wcs_target, trim=(0, 0, 0, 0),
-                processor: ImageProcessor=None, world_coord_bounds=None):
+                processor: ImageProcessor=None, world_coord_bounds=None,
+                ra_wrap_point=0):
     """Finds the pixel bounds of a FITS header in an output WCS.
     
     The edges of the input image are transformed to the coordinate system of
@@ -89,6 +90,11 @@ def find_bounds(wcs, wcs_target, trim=(0, 0, 0, 0),
         Any value can be ``None`` to not provide a bound. The RA bounds are
         used for find the y bounds, and the dec bounds are separately used for
         finding the x bounds.
+    ra_wrap_point : ``float``
+        Defines the "start point" for right ascension. RA is a periodic
+        quantity, and for the purposes of applying ``world_coord_bounds``, RA
+        values will be wrapped to fall within the range
+        ``(ra_wrap_point, ra_wrap_point + 360)``.
     
     Returns
     -------
@@ -102,22 +108,7 @@ def find_bounds(wcs, wcs_target, trim=(0, 0, 0, 0),
         ih = processor.load_image(wcs)
         wcs = ih.wcs
     
-    # Generate pixel coordinates along the edges, accounting for the trim
-    # values
-    left = 0 + trim[0]
-    right = wcs.pixel_shape[0] - trim[1]
-    bottom = 0 + trim[2]
-    top = wcs.pixel_shape[1] - trim[3]
-    xs = np.concatenate((
-        np.arange(left, right),
-        np.full(top-bottom, right - 1),
-        np.arange(right - 1, left - 1, -1),
-        np.full(top-bottom, left)))
-    ys = np.concatenate((
-        np.full(right - left, bottom),
-        np.arange(bottom, top),
-        np.full(right - left, top - 1),
-        np.arange(top - 1, bottom - 1, -1)))
+    xs, ys = points_along_edge(wcs.array_shape, trim, n_pts=100)
     
     ra, dec = wcs.pixel_to_world_values(xs, ys)
     assert not np.any(np.isnan(ra)) and not np.any(np.isnan(dec))
@@ -134,6 +125,7 @@ def find_bounds(wcs, wcs_target, trim=(0, 0, 0, 0),
             world_coord_bounds[3] = np.inf
         ra_bounds = world_coord_bounds[0:2]
         dec_bounds = world_coord_bounds[2:4]
+        ra = wrap_inside_period(ra, ra_wrap_point, 360)
         f_for_x = (dec_bounds[0] <= dec) * (dec <= dec_bounds[1])
         f_for_y = (ra_bounds[0] <= ra) * (ra <= ra_bounds[1])
         if not np.any(f_for_x) or not np.any(f_for_y):
@@ -150,6 +142,33 @@ def find_bounds(wcs, wcs_target, trim=(0, 0, 0, 0),
             int(np.ceil(np.max(cx))),
             int(np.floor(np.min(cy))),
             int(np.ceil(np.max(cy))))
+
+
+def wrap_inside_period(values, period_start, period_size):
+    return (values - period_start) % period_size + period_start
+
+
+def points_along_edge(shape, trim=(0, 0, 0, 0), n_pts=-1, separate_edges=False):
+    # Generate pixel coordinates along the edges, accounting for the trim
+    # values
+    left = -.5 + trim[0]
+    right = shape[1] - .5 - trim[1]
+    bottom = -.5 + trim[2]
+    top = shape[0] - .5 - trim[3]
+    xs = np.linspace(left, right, shape[1] if n_pts == -1 else n_pts)
+    ys = np.linspace(bottom, top, shape[0] if n_pts == -1 else n_pts)
+    edgex = [xs, # bottom edge
+             np.full(len(ys), xs[-1]), # right edge
+             xs, # top edge
+             np.full(len(ys), xs[0])] # left edge
+    edgey = [np.full(len(xs),ys[0]), # bottom edge
+             ys, # right edge
+             np.full(len(xs), ys[-1]), # top edge
+             ys] # left edge
+    if not separate_edges:
+        edgex = np.concatenate(edgex)
+        edgey = np.concatenate(edgey)
+    return edgex, edgey
 
 
 def prepare_axes(ax, wcs=None, grid=False):
