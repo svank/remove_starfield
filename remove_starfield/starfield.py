@@ -67,6 +67,7 @@ class Starfield:
             # hdf5 file before it's closed
             starfield = f["starfield"][:].copy()
             wcs = WCS(f["wcs"][()])
+            wcs.array_shape = starfield.shape
             frame_count = f.get("frame_count", None)
             if frame_count is not None:
                 frame_count = frame_count[:].copy()

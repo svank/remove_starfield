@@ -176,6 +176,7 @@ def build_starfield_estimate(
             shape[0] -= shape[0] - bounds[3]
             shape[0] -= bounds[2]
             starfield_wcs = starfield_wcs[bounds[2]:bounds[3]]
+        starfield_wcs.array_shape = shape
     else:
         shape = starfield_wcs.array_shape
     
@@ -230,13 +231,11 @@ def build_starfield_estimate(
                 # This must be the last iteration
                 assert i == n_chunks - 1
                 starfield_accum = starfield_accum[:, :, 0:xstop-xstart]
-                cutout_shape = starfield_accum.shape
             # imap_unordered only accepts one list of arguments, so bundle up
             # what we need.
             args = zip(
                 files,
                 repeat(starfield_wcs[:, xstart:xstop]),
-                repeat(cutout_shape[1:]),
                 repeat(processor))
             n_good = 0
             stack_sources = []
@@ -339,7 +338,9 @@ def _process_file(args):
     """
     Internal function processing a single file. Run in parallel
     """
-    fname, starfield_wcs, shape, processor = args
+    fname, starfield_wcs, processor = args
+    
+    shape = starfield_wcs.array_shape
     
     image_holder = processor.load_image(fname)
     
