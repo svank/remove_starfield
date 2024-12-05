@@ -7,4 +7,4 @@ from . import star_tools
 
 from .core import build_starfield_estimate
 
-__version__ = "0.0.3"
+__version__ = "0.0.4"
