@@ -2,6 +2,7 @@ from collections.abc import Iterable
 from itertools import repeat
 from math import ceil, floor
 import multiprocessing
+import os
 import random
 
 from astropy.wcs import WCS
@@ -123,6 +124,8 @@ def build_starfield_estimate(
         The index in the input file list of the source file for each position
         along the first axis of ``stack``.
     """
+    n_procs = n_procs or os.cpu_count()
+    
     if starfield_wcs is None:
         # Create the WCS describing the whole-sky starmap
         shape = [int(floor(180/map_scale)), int(floor(360/map_scale))]
@@ -239,8 +242,10 @@ def build_starfield_estimate(
                 repeat(processor))
             n_good = 0
             stack_sources = []
+            reproject_chunk_size = min(5, int(len(files) / n_procs / 3))
+            reproject_chunk_size = max(reproject_chunk_size, 1)
             for (ymin, ymax, xmin, xmax, output, fname) in p.imap_unordered(
-                    _process_file, args, chunksize=5):
+                    _process_file, args, chunksize=reproject_chunk_size):
             # for (ymin, ymax, xmin, xmax, output) in map(process_file_percentile, args):
                 pbar_stack.update()
                 if output is not None:
