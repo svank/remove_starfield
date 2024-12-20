@@ -207,7 +207,6 @@ def build_starfield_estimate(
     # there will be some input files covering that section and some that don't.
     # Shuffle the file list to get a more even distribution of lots-of-work and
     # no-work files, to benefit the multiprocessing.
-    files = [f for f in files]
     fname_to_i = {fname: i for i, fname in enumerate(files)}
     if shuffle:
         random.seed(1)
