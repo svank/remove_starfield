@@ -7,6 +7,9 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 import os
 import sys
+from importlib.metadata import version as get_version
+
+from packaging.version import Version
 
 sys.path.insert(0, os.path.abspath("../.."))
 
@@ -14,7 +17,13 @@ sys.path.insert(0, os.path.abspath("../.."))
 project = "remove_starfield"
 copyright = "2024, Sam Van Kooten"
 author = "Sam Van Kooten"
-release = "0.0.1"
+
+# The full version, including alpha/beta/rc tags
+release: str = get_version("remove_starfield")
+version: str = release
+_version = Version(release)
+if _version.is_devrelease:
+    version = release = f"{_version.base_version}.dev{_version.dev}"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
