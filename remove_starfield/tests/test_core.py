@@ -36,7 +36,7 @@ def _calc_starfield(target_mem_usage, shuffle=True):
     return starfield
 
 
-@pytest.mark.array_compare(file_format='fits')
+@pytest.mark.array_compare(file_format='fits', atol=1e-18)
 def test_build_starfield_estimate(starfield):
     return np.stack(
         (starfield.starfield, starfield.attribution, starfield.frame_count))

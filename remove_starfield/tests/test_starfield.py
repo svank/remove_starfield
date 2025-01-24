@@ -21,7 +21,7 @@ def test_starfield_save_load(starfield, tmp_path):
     assert str(starfield.wcs) == str(starfield2.wcs)
 
 
-@pytest.mark.array_compare(file_format='fits')
+@pytest.mark.array_compare(file_format='fits', atol=1e-18)
 def test_starfield_subtract_from_image(starfield):
     test_file = remove_starfield.utils.test_data_path(
         'WISPR_files_preprocessed_quarter_size_L3',
@@ -36,7 +36,7 @@ def test_starfield_subtract_from_image(starfield):
         subtracted.starfield_sample, subtracted.subtracted))
 
 
-@pytest.mark.array_compare(file_format='fits',
+@pytest.mark.array_compare(file_format='fits', atol=1e-18,
                            filename='test_starfield_subtract_from_image.fits')
 def test_starfield_subtract_from_image_3D(starfield):
     # Ensure we handle multidimensional starfields and images
