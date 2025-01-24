@@ -125,6 +125,7 @@ class Starfield:
             self.starfield,
             norm=matplotlib.colors.PowerNorm(
                 gamma=1/2.2, vmin=vmin, vmax=vmax),
+            interpolation_stage='data',
             **kwargs)
         
         # Set this image to be the one found by plt.colorbar, for instance. But
@@ -172,7 +173,8 @@ class Starfield:
         
         # Establish plotting defaults, but let kwargs overwrite them
         kwargs = dict(cmap='viridis', origin='lower') | kwargs
-        im = ax.imshow(self.frame_count, vmin=vmin, vmax=vmax, **kwargs)
+        im = ax.imshow(self.frame_count, vmin=vmin, vmax=vmax,
+                       interpolation_stage='data', **kwargs)
         
         # Set this image to be the one found by plt.colorbar, for instance. But
         # if this manager attribute is empty, pyplot won't accept it.
@@ -233,7 +235,8 @@ class Starfield:
         
         # Establish plotting defaults, but let kwargs overwrite them
         kwargs = dict(cmap='viridis', origin='lower') | kwargs
-        im = ax.imshow(image, vmin=vmin, vmax=vmax, **kwargs)
+        im = ax.imshow(image, vmin=vmin, vmax=vmax, interpolation_stage='data',
+                       **kwargs)
         
         # Set this image to be the one found by plt.colorbar, for instance. But
         # if this manager attribute is empty, pyplot won't accept it.

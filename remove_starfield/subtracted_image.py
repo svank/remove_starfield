@@ -122,6 +122,7 @@ class SubtractedImage:
             im = ax.imshow(data,
                     norm=matplotlib.colors.PowerNorm(
                         gamma=gamma, vmin=vmin, vmax=vmax),
+                    interpolation_stage='data',
                     **args)
             return im
         
