@@ -29,6 +29,7 @@ test = [
 	"pytest-arraydiff >= 0.6",
 	"pytest-mock >= 3.7",
 	"pytest-mpl >= 0.16",
+	"scipy >= 1.15",
 ]
 
 [tool.setuptools.dynamic]
