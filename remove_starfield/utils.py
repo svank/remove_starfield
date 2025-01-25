@@ -59,7 +59,7 @@ def find_collective_bounds(wcses, wcs_target, trim=(0, 0, 0, 0),
 
 def find_bounds(wcs, wcs_target, trim=(0, 0, 0, 0),
                 processor: ImageProcessor=None, world_coord_bounds=None,
-                ra_wrap_point=0):
+                ra_wrap_point=0, wrap_aware=False):
     """Finds the pixel bounds of a FITS header in an output WCS.
     
     The edges of the input image are transformed to the coordinate system of
@@ -95,6 +95,9 @@ def find_bounds(wcs, wcs_target, trim=(0, 0, 0, 0),
         quantity, and for the purposes of applying ``world_coord_bounds``, RA
         values will be wrapped to fall within the range
         ``(ra_wrap_point, ra_wrap_point + 360)``.
+    wrap_aware : boolean
+        Whether to heuristically check for and handle the case that the image
+        straddles the wrap point of the periodic x axis.
     
     Returns
     -------
@@ -138,10 +141,35 @@ def find_bounds(wcs, wcs_target, trim=(0, 0, 0, 0),
     cx = cx[f_for_x]
     cy = cy[f_for_y]
     
-    return (int(np.floor(np.min(cx))),
-            int(np.ceil(np.max(cx))),
-            int(np.floor(np.min(cy))),
-            int(np.ceil(np.max(cy))))
+    if not wrap_aware:
+        return (int(np.floor(np.min(cx))),
+                int(np.ceil(np.max(cx))),
+                int(np.floor(np.min(cy))),
+                int(np.ceil(np.max(cy))))
+    
+    ranges = []
+    
+    cx_hist, cx_hist_edges = np.histogram(cx, bins=11)
+    if cx_hist[0] > 0 and cx_hist[-1] > 0 and cx_hist[len(cx_hist) // 2] == 0:
+        divider = cx_hist_edges[len(cx_hist) // 2]
+        for f in (cx < divider, cx > divider):
+            cxf = cx[f]
+            cyf = cy[f]
+            xmin = cxf.min()
+            xmax = cxf.max()
+            ymin = cyf.min()
+            ymax = cyf.max()
+            ranges.append((xmin, xmax, ymin, ymax))
+    else:
+        ranges.append((cx.min(), cx.max(), cy.min(), cy.max()))
+    for i, r in enumerate(ranges):
+        r = (
+            int(np.floor(r[0])),
+            int(np.ceil(r[1])),
+            int(np.floor(r[2])),
+            int(np.ceil(r[3])))
+        ranges[i] = r
+    return ranges
 
 
 def wrap_inside_period(values, period_start, period_size):

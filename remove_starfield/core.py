@@ -243,29 +243,31 @@ def build_starfield_estimate(
             stack_sources = []
             reproject_chunk_size = min(5, int(len(files) / n_procs / 3))
             reproject_chunk_size = max(reproject_chunk_size, 1)
-            for (ymin, ymax, xmin, xmax, output, fname) in p.imap_unordered(
+            # for (reprojected_results, fname) in map(process_file_percentile, args):
+            for (reprojected_results, fname) in p.imap_unordered(
                     _process_file, args, chunksize=reproject_chunk_size):
-            # for (ymin, ymax, xmin, xmax, output) in map(process_file_percentile, args):
                 pbar_stack.update()
-                if output is not None:
-                    # In practice, not every input image covers a portion of
-                    # each chunk of the output map. As an optimization, instead
-                    # of assigning a layer of the accumulation array to each
-                    # input image from the start, we assign as we go---each
-                    # time a process returns a contribution from an image, we
-                    # move to teh next layer of the accumulation array, clear
-                    # it, and paste in what we got from the worker process.
-                    # This avoids having to clear out the entire array each
-                    # time through the loop, and makes it easy to reduce the
-                    # work done during the percentile calculation, since we're
-                    # not feeding in as many NaNs that have to be filtered.
-                    starfield_accum[n_good].fill(np.nan)
+                if reprojected_results is None:
+                    continue
+                # In practice, not every input image covers a portion of each
+                # chunk of the output map. As an optimization, instead of
+                # assigning a layer of the accumulation array to each input
+                # image from the start, we assign as we go---each time a
+                # process returns a contribution from an image, we move to
+                # the next layer of the accumulation array, clear it,
+                # and paste in what we got from the worker process. This
+                # avoids having to clear out the entire array each time
+                # through the loop, and makes it easy to reduce the work done
+                # during the percentile calculation, since we're not feeding
+                # in as many NaNs that have to be filtered.
+                starfield_accum[n_good].fill(np.nan)
+                for ymin, ymax, xmin, xmax, output in reprojected_results:
                     starfield_accum[n_good, ymin:ymax, xmin:xmax] = output
-                    n_good += 1
                     if frame_count:
                         count[:, xstart:xstop][ymin:ymax, xmin:xmax] += (
                             np.isfinite(output))
-                    stack_sources.append(fname_to_i[fname])
+                n_good += 1
+                stack_sources.append(fname_to_i[fname])
             pbar_stack.refresh()
             # Ignore all the slices we didn't use
             starfield_accum_used = starfield_accum[:n_good]
@@ -365,46 +367,52 @@ def _process_file(args):
     dec_stop = np.max(decs)
 
     cdelt = starfield_wcs.wcs.cdelt
-    bounds = utils.find_bounds(
+    bounds_sets = utils.find_bounds(
         image_holder.wcs, starfield_wcs, processor=processor,
         world_coord_bounds=[ra_start - cdelt[0], ra_stop + cdelt[0],
                             dec_start - cdelt[1], dec_stop + cdelt[1]],
-        ra_wrap_point=ra_start)
+        ra_wrap_point=ra_start, wrap_aware=True)
     
-    if bounds is None:
+    if bounds_sets is None:
         # This image doesn't span the portion of the all-sky map now being
         # computed, so we can stop now.
-        return [None] * 6
-    xmin, xmax, ymin, ymax = bounds
-
-    if xmin < 0:
-        xmin = 0
-    if ymin < 0:
-        ymin = 0
-    if xmax >= shape[1]:
-        xmax = shape[1]
-    if ymax >= shape[0]:
-        ymax = shape[0]
-
-    if xmin >= shape[1] or xmax <= 0 or ymin >= shape[0] or ymax <= 0:
-        return [None] * 6
+        return None, None
     
-    image_holder = processor.preprocess_image(image_holder)
+    reprojected_results = []
+    for bounds in bounds_sets:
+        xmin, xmax, ymin, ymax = bounds
+        if xmin < 0:
+            xmin = 0
+        if ymin < 0:
+            ymin = 0
+        if xmax >= shape[1]:
+            xmax = shape[1]
+        if ymax >= shape[0]:
+            ymax = shape[0]
     
-    swcs = starfield_wcs[ymin:ymax, xmin:xmax]
+        if xmin >= shape[1] or xmax <= 0 or ymin >= shape[0] or ymax <= 0:
+            continue
+        
+        image_holder = processor.preprocess_image(image_holder)
+        
+        swcs = starfield_wcs[ymin:ymax, xmin:xmax]
+        
+        output = reproject.reproject_adaptive(
+            (image_holder.data, image_holder.wcs), swcs,
+            (ymax - ymin, xmax - xmin),
+            return_footprint=False, roundtrip_coords=False,
+            boundary_mode='strict',
+            conserve_flux=True,
+            # This seems to handle the output coordinate wrap-around much better
+            center_jacobian=True,
+        )
     
-    output = reproject.reproject_adaptive(
-        (image_holder.data, image_holder.wcs), swcs, (ymax - ymin, xmax - xmin),
-        return_footprint=False, roundtrip_coords=False,
-        boundary_mode='strict',
-        conserve_flux=True,
-        # This happens to handle the output coordinate wrap-around much better
-        center_jacobian=True,
-    )
+        output = processor.postprocess_image(output, swcs, image_holder)
+        reprojected_results.append((ymin, ymax, xmin, xmax, output))
     
-    output = processor.postprocess_image(output, swcs, image_holder)
-    
-    return ymin, ymax, xmin, xmax, output, fname
+    if len(reprojected_results):
+        return reprojected_results, fname
+    return None, None
 
 
 def _reduce_strip(args):
