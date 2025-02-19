@@ -137,8 +137,8 @@ def find_bounds(wcs, wcs_target, trim=(0, 0, 0, 0),
         f_for_x = np.ones(len(ra), dtype=bool)
         f_for_y = f_for_x
     
-    cx, cy = wcs_target.world_to_pixel_values(ra, dec)
-    cx = cx[f_for_x]
+    cx_orig, cy = wcs_target.world_to_pixel_values(ra, dec)
+    cx = cx_orig[f_for_x]
     cy = cy[f_for_y]
     
     if not wrap_aware:
@@ -152,14 +152,16 @@ def find_bounds(wcs, wcs_target, trim=(0, 0, 0, 0),
     cx_hist, cx_hist_edges = np.histogram(cx, bins=11)
     if cx_hist[0] > 0 and cx_hist[-1] > 0 and cx_hist[len(cx_hist) // 2] == 0:
         divider = cx_hist_edges[len(cx_hist) // 2]
-        for f in (cx < divider, cx > divider):
-            cxf = cx[f]
-            cyf = cy[f]
-            xmin = cxf.min()
-            xmax = cxf.max()
-            ymin = cyf.min()
-            ymax = cyf.max()
-            ranges.append((xmin, xmax, ymin, ymax))
+        for sign in (cx_orig - divider, divider - cx_orig):
+            filter = sign > 0
+            cxf = cx[filter[f_for_x]]
+            cyf = cy[filter[f_for_y]]
+            if len(cxf) and len(cyf):
+                xmin = cxf.min()
+                xmax = cxf.max()
+                ymin = cyf.min()
+                ymax = cyf.max()
+                ranges.append((xmin, xmax, ymin, ymax))
     else:
         ranges.append((cx.min(), cx.max(), cy.min(), cy.max()))
     for i, r in enumerate(ranges):
@@ -169,6 +171,8 @@ def find_bounds(wcs, wcs_target, trim=(0, 0, 0, 0),
             int(np.floor(r[2])),
             int(np.ceil(r[3])))
         ranges[i] = r
+    if not len(ranges):
+        return None
     return ranges
 
 
