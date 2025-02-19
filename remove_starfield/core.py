@@ -243,9 +243,13 @@ def build_starfield_estimate(
             stack_sources = []
             reproject_chunk_size = min(5, int(len(files) / n_procs / 3))
             reproject_chunk_size = max(reproject_chunk_size, 1)
-            # for (reprojected_results, fname) in map(process_file_percentile, args):
-            for (reprojected_results, fname) in p.imap_unordered(
-                    _process_file, args, chunksize=reproject_chunk_size):
+            if n_procs == 1:
+                # Don't go parallel if we don't have to---makes it easier to use a debugger
+                iterator = map(_process_file, args)
+            else:
+                iterator = p.imap_unordered(
+                   _process_file, args, chunksize=reproject_chunk_size)
+            for (reprojected_results, fname) in iterator:
                 pbar_stack.update()
                 if reprojected_results is None:
                     continue
@@ -292,13 +296,12 @@ def build_starfield_estimate(
                         starfield_accum_used[:, i].copy(),
                         stack_sources if attribution else None,
                         reducer)
-            
-            for y, res in enumerate(p.imap(
-            # for y, res in enumerate(map(
-                    _reduce_strip,
-                    args(),
-                    chunksize=20)):
-                    # )):
+
+            if n_procs == 1:
+                iterator = map(_reduce_strip, args())
+            else:
+                iterator = p.imap(_reduce_strip, args(), chunksize=20)
+            for y, res in enumerate(iterator):
                 pbar_reduce.update()
                 if attribution:
                     res, srcs = res
