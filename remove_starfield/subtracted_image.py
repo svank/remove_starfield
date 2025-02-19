@@ -55,7 +55,7 @@ class SubtractedImage:
                      overwrite=overwrite)
     
     def plot_comparison(self, vmin='auto', vmax='auto', pmin=1, pmax=99,
-                        bwr=False, **kwargs):
+                        bwr=False, grid=True, **kwargs):
         """Produces a 2x2 array of plots for easy evaluation
 
         Parameters
@@ -124,6 +124,8 @@ class SubtractedImage:
                         gamma=gamma, vmin=vmin, vmax=vmax),
                     interpolation_stage='data',
                     **args)
+            if grid:
+                ax.coords.grid(color='white', alpha=.2)
             return im
         
         ax = axs[0]
