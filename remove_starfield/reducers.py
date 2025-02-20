@@ -201,7 +201,7 @@ class GaussianReducer(StackReducer):
         return (1 / (sigma * np.sqrt(2*np.pi))
                 * np.exp(-(x - x0)**2 / 2 / sigma**2))
     
-    def _reduce_pixel(self, sequence):
+    def _reduce_pixel(self, sequence, return_extras=False):
         sequence = sequence[np.isfinite(sequence)]
         if len(sequence) < self.min_size:
             return np.nan
@@ -240,10 +240,29 @@ class GaussianReducer(StackReducer):
                     maxfev=4000)
             if popt[1] > 5 * (bin_centers[-1] - bin_centers[0]):
                 # This is probably a bad fit
-                return -np.inf
-            return popt[0]
+                result = -np.inf
+            else:
+                result = popt[0]
         except RuntimeError:
-            return np.inf
+            result = np.inf
+        if return_extras:
+            return result, sequence, popt
+        return result
+
+    def visualize(self, sequence):
+        """Given a sequnece of values for a single (ra, dec) coordinate, plots the histogram and fitted Gaussian"""
+        # Lazy import
+        import matplotlib.pyplot as plt
+        center, inliers, popt = self._reduce_pixel(sequence, return_extras=True)
+        _, bins, _ = plt.hist(sequence[np.isfinite(sequence)], bins=100, log=True, color='C1')
+        values, _, _ = plt.hist(inliers, bins=bins, log=True, color='C0')
+        plt.axvline(center, color='C3')
+        bin_width = (bins[1] - bins[0])
+        bin_centers = bins[:-1] + bin_width / 2
+        gaussian = self._gaussian(bin_centers, *popt)
+        gaussian *= np.max(values) / np.max(gaussian)
+        plt.plot(bin_centers, gaussian, color='C3')
+        plt.ylim(.5, np.max(gaussian) * 2)
 
 
 class MeanReducer(StackReducer):
