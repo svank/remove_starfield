@@ -29,6 +29,7 @@ def build_starfield_estimate(
         stack_all: bool=False,
         shuffle: bool=True,
         handle_wrap_point: bool=True,
+        dtype=float,
         n_procs: int=None) -> Starfield:
     """Generate a starfield estimate from a set of images
     
@@ -223,7 +224,7 @@ def build_starfield_estimate(
         # This is the big honking array that holds a bunch of reprojected
         # images in memory at once. We allocate it only once and keep re-using
         # it, since allocating so much is quite slow.
-        starfield_accum = np.empty(cutout_shape)
+        starfield_accum = np.empty(cutout_shape, dtype=dtype)
         
         # Begin looping over output chunks
         for i in range(n_chunks):
@@ -240,7 +241,8 @@ def build_starfield_estimate(
                 files,
                 repeat(starfield_wcs[:, xstart:xstop]),
                 repeat(processor),
-                repeat(handle_wrap_point))
+                repeat(handle_wrap_point),
+                repeat(dtype))
             n_good = 0
             stack_sources = []
             reproject_chunk_size = min(5, int(len(files) / n_procs / 3))
@@ -349,7 +351,7 @@ def _process_file(args):
     """
     Internal function processing a single file. Run in parallel
     """
-    fname, starfield_wcs, processor, handle_wrap_point = args
+    fname, starfield_wcs, processor, handle_wrap_point, dtype = args
     
     shape = starfield_wcs.array_shape
     
@@ -401,10 +403,12 @@ def _process_file(args):
         image_holder = processor.preprocess_image(image_holder)
         
         swcs = starfield_wcs[ymin:ymax, xmin:xmax]
-        
-        output = reproject.reproject_adaptive(
+
+        output = np.empty((ymax - ymin, xmax - xmin), dtype=dtype)
+        reproject.reproject_adaptive(
             (image_holder.data, image_holder.wcs), swcs,
             (ymax - ymin, xmax - xmin),
+            output_array=output,
             return_footprint=False, roundtrip_coords=False,
             boundary_mode='strict',
             conserve_flux=True,
