@@ -248,7 +248,8 @@ class Starfield:
     
     def subtract_from_image(self,
                             file: str | ImageHolder,
-                            processor: ImageProcessor=ImageProcessor()
+                            processor: ImageProcessor=ImageProcessor(),
+                            handle_wrap_point: bool=True
                             ) -> SubtractedImage:
         """Subtracts this starfield from an image
         
@@ -285,8 +286,8 @@ class Starfield:
         # Project the starfield into the input image's frame
         starfield_sample = reproject.reproject_adaptive(
             (self.starfield, self.wcs), input_wcs, input_data.shape,
-            roundtrip_coords=False, return_footprint=False, x_cyclic=True,
-            conserve_flux=True, center_jacobian=True, despike_jacobian=True)
+            roundtrip_coords=False, return_footprint=False, x_cyclic=handle_wrap_point,
+            conserve_flux=True, center_jacobian=handle_wrap_point, despike_jacobian=handle_wrap_point)
         
         starfield_sample = processor.postprocess_starfield_estimate(
             starfield_sample, image_holder)

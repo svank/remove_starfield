@@ -28,6 +28,7 @@ def build_starfield_estimate(
         map_scale: float=0.04,
         stack_all: bool=False,
         shuffle: bool=True,
+        handle_wrap_point: bool=True,
         n_procs: int=None) -> Starfield:
     """Generate a starfield estimate from a set of images
     
@@ -238,7 +239,8 @@ def build_starfield_estimate(
             args = zip(
                 files,
                 repeat(starfield_wcs[:, xstart:xstop]),
-                repeat(processor))
+                repeat(processor),
+                repeat(handle_wrap_point))
             n_good = 0
             stack_sources = []
             reproject_chunk_size = min(5, int(len(files) / n_procs / 3))
@@ -347,7 +349,7 @@ def _process_file(args):
     """
     Internal function processing a single file. Run in parallel
     """
-    fname, starfield_wcs, processor = args
+    fname, starfield_wcs, processor, handle_wrap_point = args
     
     shape = starfield_wcs.array_shape
     
@@ -407,7 +409,7 @@ def _process_file(args):
             boundary_mode='strict',
             conserve_flux=True,
             # This seems to handle the output coordinate wrap-around much better
-            center_jacobian=True,
+            center_jacobian=handle_wrap_point,
         )
     
         output = processor.postprocess_image(output, swcs, image_holder)
