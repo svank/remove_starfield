@@ -11,7 +11,7 @@ import reproject
 from tqdm.auto import tqdm
 import warnings
 
-from . import ImageProcessor, Starfield, utils
+from . import ImageProcessor, Starfield, utils, ImageHolder
 from .reducers import StackReducer, GaussianReducer
 
 
@@ -29,6 +29,7 @@ def build_starfield_estimate(
         stack_all: bool=False,
         shuffle: bool=True,
         handle_wrap_point: bool=True,
+        mask_strategy: str='bounds',
         dtype=float,
         n_procs: int=None) -> Starfield:
     """Generate a starfield estimate from a set of images
@@ -106,6 +107,14 @@ def build_starfield_estimate(
         within the list of input images. To ensure a more even distribution of
         work, the list of input images is randomly shuffled. This can be
         disabled for debugging purposes.
+    mask_strategy : ``str`` or BlockMasker, optional
+        A strategy for reducing the amount of reprojection work. If set to
+        "bounds", the edges of each input image are reprojected into the
+        starfield frame, and only the bounding box of the result is reprojected
+        into. If set tto a BlockMaster instance, that object is used to divide
+        the starfield frame into cells, each of which is checked against the
+        input image, and only the cells indicated by the BlockMaster are
+        reprojected into.
     n_procs : ``int``, optional
         The number of core to use for multi-processing. If unset, the value
         returned by ``os.cpu_count``.
@@ -242,17 +251,20 @@ def build_starfield_estimate(
                 repeat(starfield_wcs[:, xstart:xstop]),
                 repeat(processor),
                 repeat(handle_wrap_point),
-                repeat(dtype))
+                repeat(dtype),
+                repeat(mask_strategy))
             n_good = 0
             stack_sources = []
             reproject_chunk_size = min(5, int(len(files) / n_procs / 3))
             reproject_chunk_size = max(reproject_chunk_size, 1)
+
+            worker_fcn = _process_file if mask_strategy == 'bounds' else _process_file_block_mask
             if n_procs == 1:
                 # Don't go parallel if we don't have to---makes it easier to use a debugger
-                iterator = map(_process_file, args)
+                iterator = map(worker_fcn, args)
             else:
                 iterator = p.imap_unordered(
-                   _process_file, args, chunksize=reproject_chunk_size)
+                   worker_fcn, args, chunksize=reproject_chunk_size)
             for (reprojected_results, fname) in iterator:
                 pbar_stack.update()
                 if reprojected_results is None:
@@ -269,10 +281,10 @@ def build_starfield_estimate(
                 # during the percentile calculation, since we're not feeding
                 # in as many NaNs that have to be filtered.
                 starfield_accum[n_good].fill(np.nan)
-                for ymin, ymax, xmin, xmax, output in reprojected_results:
-                    starfield_accum[n_good, ymin:ymax, xmin:xmax] = output
+                for slice, output in reprojected_results:
+                    starfield_accum[n_good, *slice] = output
                     if frame_count:
-                        count[:, xstart:xstop][ymin:ymax, xmin:xmax] += (
+                        count[:, xstart:xstop][slice] += (
                             np.isfinite(output))
                 n_good += 1
                 stack_sources.append(fname_to_i[fname])
@@ -351,25 +363,25 @@ def _process_file(args):
     """
     Internal function processing a single file. Run in parallel
     """
-    fname, starfield_wcs, processor, handle_wrap_point, dtype = args
-    
+    fname, starfield_wcs, processor, handle_wrap_point, dtype, _ = args
+
     shape = starfield_wcs.array_shape
-    
+
     image_holder = processor.load_image(fname)
-    
+
     # Identify where this image will fall in the whole-sky map
     edges_x, edges_y = utils.points_along_edge(shape, trim=[.1, .1, .1, .1],
                                                n_pts=-1, separate_edges=True)
     ras, decs = starfield_wcs.pixel_to_world_values(edges_x[3], edges_y[3])
     ra_start = np.min(ras)
-    
+
     ras, decs = starfield_wcs.pixel_to_world_values(edges_x[1], edges_y[1])
     ra_stop = np.max(ras)
     ra_stop = utils.wrap_inside_period(ra_stop, ra_start, 360)
-    
+
     ras, decs = starfield_wcs.pixel_to_world_values(edges_x[0], edges_y[0])
     dec_start = np.min(decs)
-    
+
     ras, decs = starfield_wcs.pixel_to_world_values(edges_x[2], edges_y[2])
     dec_stop = np.max(decs)
 
@@ -379,12 +391,12 @@ def _process_file(args):
         world_coord_bounds=[ra_start - cdelt[0], ra_stop + cdelt[0],
                             dec_start - cdelt[1], dec_stop + cdelt[1]],
         ra_wrap_point=ra_start, wrap_aware=True)
-    
+
     if bounds_sets is None:
         # This image doesn't span the portion of the all-sky map now being
         # computed, so we can stop now.
         return None, None
-    
+
     reprojected_results = []
     for bounds in bounds_sets:
         xmin, xmax, ymin, ymax = bounds
@@ -396,13 +408,14 @@ def _process_file(args):
             xmax = shape[1]
         if ymax >= shape[0]:
             ymax = shape[0]
-    
+
         if xmin >= shape[1] or xmax <= 0 or ymin >= shape[0] or ymax <= 0:
             continue
-        
+
         image_holder = processor.preprocess_image(image_holder)
-        
-        swcs = starfield_wcs[ymin:ymax, xmin:xmax]
+
+        s = np.s_[ymin:ymax, xmin:xmax]
+        swcs = starfield_wcs[s]
 
         output = np.empty((ymax - ymin, xmax - xmin), dtype=dtype)
         reproject.reproject_adaptive(
@@ -415,10 +428,45 @@ def _process_file(args):
             # This seems to handle the output coordinate wrap-around much better
             center_jacobian=handle_wrap_point,
         )
-    
+
         output = processor.postprocess_image(output, swcs, image_holder)
-        reprojected_results.append((ymin, ymax, xmin, xmax, output))
+        reprojected_results.append((s, output))
     
+    if len(reprojected_results):
+        return reprojected_results, fname
+    return None, None
+
+
+def _process_file_block_mask(args):
+    """
+    Internal function processing a single file. Run in parallel
+    """
+    fname, starfield_wcs, processor, handle_wrap_point, dtype, masker = args
+
+    shape = starfield_wcs.array_shape
+
+    image_holder = processor.load_image(fname)
+    image_holder = processor.preprocess_image(image_holder)
+
+    image_strips = masker.identify_strips(shape, starfield_wcs, image_holder)
+
+    reprojected_results = []
+    for strip in image_strips:
+        swcs = starfield_wcs[strip]
+
+        output = np.empty(swcs.array_shape, dtype=dtype)
+        reproject.reproject_adaptive(
+            (image_holder.data, image_holder.wcs), swcs,
+            swcs.array_shape,
+            output_array=output,
+            return_footprint=False, roundtrip_coords=False,
+            boundary_mode='strict',
+            conserve_flux=True,
+        )
+
+        output = processor.postprocess_image(output, swcs, image_holder)
+        reprojected_results.append((strip, output))
+
     if len(reprojected_results):
         return reprojected_results, fname
     return None, None
@@ -455,3 +503,151 @@ def _reduce_strip(args):
             return result, sources
         return result
 
+
+class BlockMasker:
+    """Class to identify strips of the output plane to reproject into.
+    
+    For input images that don't fill the whole frame, we can save a good chunk of time by not reprojecting the empty
+    parts of the input images. This class handles that. The output frame is divided in to a grid of cells. For each
+    input image, the center of each cell is transformed into the input frame, and a cell around that center is
+    sampled to determine if it's empty. Output cells that map to non-empty input cells are joined into contiguous
+    strips, each each strip of contiguous non-empty cells is reprojected independently. The strips don't include
+    empty cells, so we don't spend time reprojecting the empty data, and the use of cells and strips of joined cells
+    means we spend very little time determining which areas to reproject, and our reproject calls are still big
+    enough that we don't add much overhead from multiple calls.
+
+    One limitation is that only the location of the cells in the output frame is transformed to the input images,
+    not the shape or size of the cell. This means that at the edges of the empty region, our marking of cells as full
+    or empty is approximate, and the edges of the good region of input images might still be ignored. This is
+    probably a price worth paying.
+
+    This class is designed with pieces that can be overridded in a subclass, so custom logic can be implmented.
+    """
+    def __init__(self, x_wsize: int = 128, y_wsize: int = 128):
+        """
+
+        Parameters
+        ----------
+        x_wsize, y_size : int
+            The size of the cells in the output frame (i.e. the starfield map). Ideally this will evenly divide the starfield
+            size.
+        """
+        self.x_wsize, self.y_wsize = x_wsize, y_wsize
+
+    def generate_blocks(self, starmap_shape: tuple):
+        """
+        Produce a list of cells in the output frame.
+
+        Parameters
+        ----------
+        starmap_shape : tuple
+            the shape of the output frame
+
+        Returns
+        -------
+        blocks : np.ndarray
+            A (2, n_blocks_y, n_blocks_x) array, containing in the first dimension the x and y coordinate at which each block starts.
+        block_centers : np.ndarray
+            A (2, n_blocks_y, n_blocks_x) array, containing in the first dimension the central x and y coordinate of each block.
+        """
+        xx = np.arange(0, starmap_shape[1], self.x_wsize)
+        yy = np.arange(0, starmap_shape[0], self.y_wsize)
+        blocks = np.array(np.meshgrid(xx, yy))
+        centers = blocks.copy()
+        centers[0] += self.x_wsize // 2
+        centers[1] += self.y_wsize // 2
+        return blocks, centers
+
+    def check_blocks(self, block_centers: np.ndarray, starmap_wcs: WCS, image_holder: ImageHolder):
+        """
+        Produces a 2D mask indicating whether the corresponding blocks are filled.
+
+        Parameters
+        ----------
+        block_centers : `np.ndarray`
+            The block centers returned by generate_blocks
+        starmap_wcs : WCS
+            The starmap `WCS`
+        image_holder : `ImageHolder`
+            The input image
+
+        Returns
+        -------
+        should_use_block : `np.ndarray`
+            A binary mask with shape (n_blocks_y, n_blocks_x) indicating whether each block should be used.
+        """
+        image_x, image_y = image_holder.wcs.world_to_pixel(
+            starmap_wcs.pixel_to_world(block_centers[0], block_centers[1]))
+        should_use_block = np.empty(block_centers[0].shape, dtype=bool)
+        for i in range(block_centers[0].shape[0]):
+            for j in range(block_centers[0].shape[1]):
+                should_use_block[i, j] = self.check_block((image_x[i, j], image_y[i, j]), image_holder)
+        return should_use_block
+
+    def check_block(self, block_center: tuple, image_holder: ImageHolder):
+        """
+        Takes a single block in the output frame and determines whether it should be reprojected into.
+
+        If custom logic is required for a data set, this is likely the method to override.
+
+        Parameters
+        ----------
+        block_center : tuple
+            The coordinates in the input image that correspond to the center of the block in the output frame
+        image_holder : ImageHolder
+            The input image
+
+        Returns
+        -------
+        block_is_good: bool
+        """
+        x, y = block_center
+        x, y = int(x), int(y)
+        if not (0 < x < image_holder.data.shape[1]):
+            return False
+        if not (0 < y < image_holder.data.shape[0]):
+            return False
+        window = image_holder.data[
+            max(0, y - self.y_wsize // 2): min(y + self.y_wsize // 2, image_holder.data.shape[1]),
+            max(0, x - self.x_wsize // 2): min(x + self.x_wsize // 2, image_holder.data.shape[0])]
+        return np.any((window != 0) * np.isfinite(window))
+
+    def identify_strips(self, starmap_shape: tuple, starmap_wcs: WCS, image_holder: ImageHolder):
+        """
+        Produce a list of strips to reproject into.
+
+        This is the entry point for remove_starfield. A grid of blocks is generated and checked to determine which
+        blocks should be reprojected into. Contiguous "good" blocks are merged into strips, and those strips are
+        returned as slice objects.
+
+        Parameters
+        ----------
+        starmap_shape : tuple
+            The starmap shape
+        starmap_wcs : WCS
+            The starmap WCS
+        image_holder : ImageHolder
+            The input image to check.
+
+        Returns
+        -------
+        strips : list[slice]
+            The strips to reproject into
+        """
+        strips = []
+        blocks, block_centers = self.generate_blocks(starmap_shape)
+        block_is_good = self.check_blocks(block_centers, starmap_wcs, image_holder)
+        for i in range(blocks.shape[1]):
+            x_start = 0
+            for j in range(blocks.shape[2]):
+                x, y = blocks[:, i, j]
+                if not block_is_good[i, j]:
+                    if x != x_start:
+                        s = np.s_[y:y + self.y_wsize, x_start:x]
+                        strips.append(s)
+                    x_start = x + self.x_wsize
+                elif j == blocks.shape[2] - 1:
+                    s = np.s_[y:y + self.y_wsize, x_start:x + self.x_wsize]
+                    strips.append(s)
+
+        return strips
