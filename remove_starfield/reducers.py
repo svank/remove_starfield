@@ -8,7 +8,6 @@ import scipy.stats
 
 
 class StackReducer(metaclass=abc.ABCMeta):
-    @abc.abstractmethod
     def reduce_strip(self, strip: np.ndarray) -> np.ndarray:
         """Method to reduce a section of the stack-of-reprojected-images
         
@@ -48,6 +47,28 @@ class StackReducer(metaclass=abc.ABCMeta):
         reduced_strip : np.ndarray
             The output array of shape ``(nx,)`` or ``(n_outputs x nx)``
         """
+        out_shape = strip.shape[1:]
+        strip = strip.reshape((strip.shape[0], -1))
+        output = np.empty(strip.shape[1], dtype=strip.dtype)
+        for i in range(len(output)):
+            output[i] = self._reduce_pixel(strip[:, i])
+        return output.reshape(out_shape)
+
+    def _reduce_pixel(self, values):
+        """
+        Reduces a single pixel.
+
+        Parameters
+        ----------
+        values : np.ndarray
+            The stack of values from all images for this pixel
+
+        Returns
+        -------
+        reduced : float
+            The starmap value for this pixel
+        """
+        return 0
 
 
 class PercentileReducer(StackReducer):
@@ -101,12 +122,6 @@ class GaussianAmplitudeReducer(StackReducer):
     def __init__(self, n_sigma=3, min_size=50):
         self.n_sigma = n_sigma
         self.min_size = min_size
-    
-    def reduce_strip(self, strip):
-        output = np.empty(strip.shape[1], dtype=strip.dtype)
-        for i in range(len(output)):
-            output[i] = self._reduce_pixel(strip[:, i])
-        return output
     
     @classmethod
     def _gaussian(cls, x, x0, sigma, A):
@@ -189,12 +204,6 @@ class GaussianReducer(StackReducer):
     def __init__(self, n_sigma=3, min_size=50):
         self.n_sigma = n_sigma
         self.min_size = min_size
-    
-    def reduce_strip(self, strip):
-        output = np.empty(strip.shape[1], dtype=strip.dtype)
-        for i in range(len(output)):
-            output[i] = self._reduce_pixel(strip[:, i])
-        return output
     
     @classmethod
     def _gaussian(cls, x, x0, sigma):
@@ -282,12 +291,6 @@ class MeanReducer(StackReducer):
         self.n_sigma = n_sigma
         self.min_size = min_size
     
-    def reduce_strip(self, strip):
-        output = np.empty(strip.shape[1], dtype=strip.dtype)
-        for i in range(len(output)):
-            output[i] = self._reduce_pixel(strip[:, i])
-        return output
-    
     def _reduce_pixel(self, sequence):
         sequence = sequence[np.isfinite(sequence)]
         if len(sequence) < self.min_size:
@@ -322,12 +325,6 @@ class SkewGaussianReducer(StackReducer):
     def __init__(self, n_sigma=3, min_size=50):
         self.n_sigma = n_sigma
         self.min_size = min_size
-    
-    def reduce_strip(self, strip):
-        output = np.empty(strip.shape[1], dtype=strip.dtype)
-        for i in range(len(output)):
-            output[i] = self._reduce_pixel(strip[:, i])
-        return output
     
     def _reduce_pixel(self, sequence):
         sequence = sequence[np.isfinite(sequence)]

@@ -20,10 +20,11 @@ def build_starfield_estimate(
         frame_count: bool=False,
         attribution: bool=False,
         processor: ImageProcessor=ImageProcessor(),
-        reducer: StackReducer=GaussianReducer(),
+        reducer: StackReducer | list[StackReducer]=GaussianReducer(),
         ra_bounds: Iterable[float]=None,
         dec_bounds: Iterable[float]=None,
         starfield_wcs: WCS=None,
+        starfield_shape: tuple=None,
         target_mem_usage: float=10,
         map_scale: float=0.04,
         stack_all: bool=False,
@@ -31,7 +32,7 @@ def build_starfield_estimate(
         handle_wrap_point: bool=True,
         mask_strategy: str='bounds',
         dtype=float,
-        n_procs: int=None) -> Starfield:
+        n_procs: int=None) -> Starfield | list[Starfield]:
     """Generate a starfield estimate from a set of images
     
     This is generally a slow, high-memory-use function, as each image must be
@@ -73,6 +74,8 @@ def build_starfield_estimate(
     reducer : `StackReducer`, optional
         An instance of a class with a ``reduce_strip`` method that reduces the
         stack of images to an output map. See `StackReducer` for more details.
+        If a list of reducers is provided, a list of stafields will be returned,
+        one produced using each reducer.
     ra_bounds, dec_bounds : ``Iterable`` of ``float``, optional
         If provided, the bounds to use for the output star map (instead of
         producing a full all-sky map). If not provided, the output map spans
@@ -123,8 +126,8 @@ def build_starfield_estimate(
     -------
     starfield : `Starfield` or ``List[Starfield]``
         The starfield estimate, including a WCS and, if specified, frame counts
-        and attribution information. If multiple maps are produced by
-        ``processor``, this will be a list of `Starfield` s.
+        and attribution information. If multiple reducers were provided, this will
+        be a list of `Starfield`s.
     stack : ``np.ndarray``
         Returned if ``stack_all==True``. An array of shape ``(n_images x ny x
         chunk_width)`` containing all the samples that contribute to the pixels
@@ -136,14 +139,15 @@ def build_starfield_estimate(
         along the first axis of ``stack``.
     """
     n_procs = n_procs or os.cpu_count()
+    reducers = reducer if isinstance(reducer, Iterable) else [reducer]
     
     if starfield_wcs is None:
         # Create the WCS describing the whole-sky starmap
-        shape = [int(floor(180/map_scale)), int(floor(360/map_scale))]
+        starfield_shape = [int(floor(180/map_scale)), int(floor(360/map_scale))]
         starfield_wcs = WCS(naxis=2)
         # n.b. it seems the RA wrap point is chosen so there's 180 degrees
         # included on either side of crpix
-        crpix = [shape[1]/2 + .5, shape[0]/2 + .5]
+        crpix = [starfield_shape[1]/2 + .5, starfield_shape[0]/2 + .5]
         starfield_wcs.wcs.crpix = crpix
         starfield_wcs.wcs.crval = 180, 0
         starfield_wcs.wcs.cdelt = map_scale, map_scale
@@ -157,10 +161,10 @@ def build_starfield_estimate(
             x_min = int(x_min)
             x_max = int(x_max)
             starfield_wcs = starfield_wcs[:, x_min:x_max+1]
-            x_size = shape[1]
+            x_size = starfield_shape[1]
             x_size -= (x_size - x_max)
             x_size -= x_min
-            shape[1] = int(x_size)
+            starfield_shape[1] = int(x_size)
         # n.b. Since RA is a periodic coordinates, the notion of bounds gets
         # weird without special handling, so don't attempt to automatically
         # clamp the output map in RA.
@@ -172,10 +176,10 @@ def build_starfield_estimate(
             y_min = int(y_min)
             y_max = int(y_max)
             starfield_wcs = starfield_wcs[y_min:y_max+1, :]
-            y_size = shape[0]
+            y_size = starfield_shape[0]
             y_size -= (y_size - y_max)
             y_size -= y_min
-            shape[0] = int(y_size)
+            starfield_shape[0] = int(y_size)
         else:
             # Figure out how much of the full sky is covered by our set of
             # images. If we don't go all the way to the celestial poles,
@@ -187,32 +191,32 @@ def build_starfield_estimate(
                 files[::15], starfield_wcs, processor=processor)
             # Apply default dec bounds to the output starfield, based on the
             # declination values covered by the input images.
-            shape[0] -= shape[0] - bounds[3]
-            shape[0] -= bounds[2]
+            starfield_shape[0] -= starfield_shape[0] - bounds[3]
+            starfield_shape[0] -= bounds[2]
             starfield_wcs = starfield_wcs[bounds[2]:bounds[3]]
-        starfield_wcs.array_shape = shape
-    else:
-        shape = starfield_wcs.array_shape
+        starfield_wcs.array_shape = starfield_shape
+    elif starfield_shape is None:
+        starfield_shape = starfield_wcs.array_shape
     
     # Allocate this later
     starfields = None
     if frame_count:
-        count = np.zeros(shape, dtype=int)
+        count = np.zeros(starfield_shape, dtype=int)
     
     # Divide the output starfields into vertical strips, each of which will be
     # processed separately. This avoids extreme memory demands for large sets
     # of input files.
     size_of_pixel = np.empty(1).dtype.itemsize
-    size_of_column = size_of_pixel * shape[0] * len(files)
-    stride = int(target_mem_usage * 1024**3 // size_of_column)
-    if stride > shape[1]:
-        stride = shape[1]
+    size_of_column = size_of_pixel * starfield_shape[-2] * len(files)
+    stride_size = int(target_mem_usage * 1024**3 // size_of_column)
+    if stride_size > starfield_shape[-1]:
+        stride_size = starfield_shape[-1]
     
-    n_chunks = ceil(shape[1] / stride)
+    n_chunks = ceil(starfield_shape[-1] / stride_size)
     if stack_all:
         n_chunks = 1
     pbar_stack = tqdm(total=n_chunks * len(files), desc="Reprojecting")
-    pbar_reduce = tqdm(total=n_chunks * shape[0], desc="Reducing")
+    pbars_reduce = [tqdm(total=n_chunks * starfield_shape[-2], desc="Reducing") for _ in reducers]
     
     # The order we process these files doesn't matter, and for every section,
     # there will be some input files covering that section and some that don't.
@@ -225,7 +229,7 @@ def build_starfield_estimate(
     
     # This is the size of the "working space" array, where we accumulate the
     # values from every image at every pixel in this chunk of the starfield.
-    cutout_shape = (len(files), shape[0], stride)
+    cutout_shape = (len(files), *starfield_shape[:-1], stride_size)
     
     with multiprocessing.Pool(processes=n_procs) as p:
         # Make some memory allocations after the fork
@@ -238,12 +242,12 @@ def build_starfield_estimate(
         # Begin looping over output chunks
         for i in range(n_chunks):
             # Work out where we are in the all-sky map
-            xstart = stride * i
-            xstop = min(shape[1], stride * (i + 1))
-            if xstop - xstart < stride:
+            xstart = stride_size * i
+            xstop = min(starfield_shape[-1], stride_size * (i + 1))
+            if xstop - xstart < stride_size:
                 # This must be the last iteration
                 assert i == n_chunks - 1
-                starfield_accum = starfield_accum[:, :, 0:xstop-xstart]
+                starfield_accum = starfield_accum[..., 0:xstop-xstart]
             # imap_unordered only accepts one list of arguments, so bundle up
             # what we need.
             args = zip(
@@ -282,63 +286,70 @@ def build_starfield_estimate(
                 # in as many NaNs that have to be filtered.
                 starfield_accum[n_good].fill(np.nan)
                 for slice, output in reprojected_results:
-                    starfield_accum[n_good, *slice] = output
+                    starfield_accum[n_good, ..., *slice] = output
                     if frame_count:
-                        count[:, xstart:xstop][slice] += (
-                            np.isfinite(output))
+                        count[..., xstart:xstop][slice] += np.isfinite(output)
                 n_good += 1
                 stack_sources.append(fname_to_i[fname])
             pbar_stack.refresh()
             # Ignore all the slices we didn't use
             starfield_accum_used = starfield_accum[:n_good]
-            
+
+            if i == n_chunks - 1:
+                pbar_stack.close()
+
             stack_sources = np.array(stack_sources)
             
-            # Now that the stacking is complete, we need to calculate the
-            # percentile value at each pixel
-            
-            def args():
-                # Generator for arguments as we run the percentile calculation
-                # in parallel
-                for i in range(starfield_accum_used.shape[1]):
-                    # We break up the accumulation array into horizontal
-                    # strips, with each strip being one job for the parallel
-                    # processing (trying to strike a balance between making
-                    # enough work units without making them too small, as it
-                    # would be if we did each output pixel as one parallel
-                    # job). We copy each chunk to ensure we're not implicitly
-                    # sending the whole accumulation array between processes.
-                    yield (
-                        starfield_accum_used[:, i].copy(),
-                        stack_sources if attribution else None,
-                        reducer)
+            # Now that the stacking is complete, we need to reduce the stack at each pixel
 
-            if n_procs == 1:
-                iterator = map(_reduce_strip, args())
+            # Allocate what will be the final output arrays
+            starfields = [np.full(starfield_shape, np.nan) for _ in reducers]
+            if attribution:
+                attribution_arrays = np.full(
+                    (len(reducers), *starfield_shape), -1, dtype=int)
             else:
-                iterator = p.imap(_reduce_strip, args(), chunksize=20)
-            for y, res in enumerate(iterator):
-                pbar_reduce.update()
-                if attribution:
-                    res, srcs = res
-                if starfields is None:
-                    # Allocate what will be the final output arrays, since we
-                    # now know how many output maps to produce
-                    starfields = [
-                        np.full(shape, np.nan) for _ in range(res.shape[0])]
+                attribution_arrays = [None] * len(starfields)
+
+            for starfield, attribution_array, this_reducer, pbar_reduce in zip(
+                starfields, attribution_arrays, reducers, pbars_reduce):
+                def args():
+                    # Generator for arguments as we run the percentile calculation
+                    # in parallel
+                    for i in range(starfield_accum_used.shape[-2]):
+                        # We break up the accumulation array into horizontal
+                        # strips, with each strip being one job for the parallel
+                        # processing (trying to strike a balance between making
+                        # enough work units without making them too small, as it
+                        # would be if we did each output pixel as one parallel
+                        # job). We copy each chunk to ensure we're not implicitly
+                        # sending the whole accumulation array between processes.
+                        yield (
+                            starfield_accum_used[..., i, :].copy(),
+                            stack_sources if attribution else None,
+                            this_reducer)
+
+                if n_procs == 1:
+                    iterator = map(_reduce_strip, args())
+                else:
+                    iterator = p.imap(_reduce_strip, args(), chunksize=20)
+                for y, res in enumerate(iterator):
+                    pbar_reduce.update()
                     if attribution:
-                        attribution_array = np.full(
-                            (len(starfields), *shape), -1, dtype=int)
-                if attribution:
-                    attribution_array[:, y, xstart:xstop] = srcs
-                for starfield, r in zip(starfields, res):
-                    starfield[y, xstart:xstop] = r
-            pbar_reduce.refresh()
+                        res, srcs = res
+                        attribution_array[..., y, xstart:xstop] = srcs
+                    starfield[..., y, xstart:xstop] = res
+                if i == n_chunks - 1:
+                    pbar_reduce.close()
+                else:
+                    pbar_reduce.refresh()
+
     if attribution:
         mask = np.isnan(starfields[0])
-        attribution_array[:, mask] = -1
+        for attribution_array in attribution_arrays:
+            attribution_array[..., mask] = -1
     pbar_stack.close()
-    pbar_reduce.close()
+    for pbar_reduce in pbars_reduce:
+        pbar_reduce.close()
     objects = []
     for i in range(len(starfields)):
         sf = starfields[i]
@@ -347,12 +358,12 @@ def build_starfield_estimate(
         else:
             fc = None
         if attribution:
-            a = attribution_array[i]
+            a = attribution_arrays[i]
         else:
             a = None
         objects.append(Starfield(starfield=sf, wcs=starfield_wcs,
                                  frame_count=fc, attribution=a))
-    if len(objects) == 1:
+    if isinstance(reducer, StackReducer):
         objects = objects[0]
     if stack_all:
         return objects, starfield_accum_used, stack_sources
@@ -417,10 +428,10 @@ def _process_file(args):
         s = np.s_[ymin:ymax, xmin:xmax]
         swcs = starfield_wcs[s]
 
-        output = np.empty((ymax - ymin, xmax - xmin), dtype=dtype)
+        output = np.empty((*image_holder.data.shape[:-2], *swcs.array_shape), dtype=dtype)
         reproject.reproject_adaptive(
             (image_holder.data, image_holder.wcs), swcs,
-            (ymax - ymin, xmax - xmin),
+            output.shape,
             output_array=output,
             return_footprint=False, roundtrip_coords=False,
             boundary_mode='strict',
@@ -454,7 +465,7 @@ def _process_file_block_mask(args):
     for strip in image_strips:
         swcs = starfield_wcs[strip]
 
-        output = np.empty(swcs.array_shape, dtype=dtype)
+        output = np.empty((*image_holder.data.shape[:-2], *swcs.array_shape), dtype=dtype)
         reproject.reproject_adaptive(
             (image_holder.data, image_holder.wcs), swcs,
             swcs.array_shape,
@@ -550,8 +561,8 @@ class BlockMasker:
         block_centers : np.ndarray
             A (2, n_blocks_y, n_blocks_x) array, containing in the first dimension the central x and y coordinate of each block.
         """
-        xx = np.arange(0, starmap_shape[1], self.x_wsize)
-        yy = np.arange(0, starmap_shape[0], self.y_wsize)
+        xx = np.arange(0, starmap_shape[-1], self.x_wsize)
+        yy = np.arange(0, starmap_shape[-2], self.y_wsize)
         blocks = np.array(np.meshgrid(xx, yy))
         centers = blocks.copy()
         centers[0] += self.x_wsize // 2
@@ -603,13 +614,14 @@ class BlockMasker:
         """
         x, y = block_center
         x, y = int(x), int(y)
-        if not (0 < x < image_holder.data.shape[1]):
+        if not (0 < x < image_holder.data.shape[-1]):
             return False
-        if not (0 < y < image_holder.data.shape[0]):
+        if not (0 < y < image_holder.data.shape[-2]):
             return False
         window = image_holder.data[
-            max(0, y - self.y_wsize // 2): min(y + self.y_wsize // 2, image_holder.data.shape[1]),
-            max(0, x - self.x_wsize // 2): min(x + self.x_wsize // 2, image_holder.data.shape[0])]
+            ...,
+            max(0, y - self.y_wsize // 2): min(y + self.y_wsize // 2, image_holder.data.shape[-1]),
+            max(0, x - self.x_wsize // 2): min(x + self.x_wsize // 2, image_holder.data.shape[-2])]
         return np.any((window != 0) * np.isfinite(window))
 
     def identify_strips(self, starmap_shape: tuple, starmap_wcs: WCS, image_holder: ImageHolder):
