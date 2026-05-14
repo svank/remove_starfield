@@ -7,4 +7,4 @@ from . import star_tools
 
 from .core import build_starfield_estimate, BlockMasker
 
-__version__ = "0.0.5"
+__version__ = "0.1"
