@@ -15,6 +15,20 @@ from . import ImageProcessor, Starfield, utils, ImageHolder
 from .reducers import StackReducer, GaussianReducer
 
 
+class ProgressIndicator:
+    def __init__(self, n_units, description):
+        self.pbar_stack = tqdm(total=n_units, desc=description)
+
+    def update(self):
+        self.pbar_stack.update()
+
+    def refresh(self):
+        self.pbar_stack.refresh()
+
+    def close(self):
+        self.pbar_stack.close()
+
+
 def build_starfield_estimate(
         files: Iterable[str],
         frame_count: bool=False,
@@ -32,6 +46,7 @@ def build_starfield_estimate(
         handle_wrap_point: bool=True,
         mask_strategy: str='bounds',
         dtype=float,
+        pbar_class=ProgressIndicator,
         n_procs: int=None) -> Starfield | list[Starfield]:
     """Generate a starfield estimate from a set of images
     
@@ -118,6 +133,11 @@ def build_starfield_estimate(
         the starfield frame into cells, each of which is checked against the
         input image, and only the cells indicated by the BlockMaster are
         reprojected into.
+    dtype
+        The numpy data type to use.
+    pbar_class
+        A class to use for indicating progress. If not provided, a ``tqdm``
+        progress bar is used.
     n_procs : ``int``, optional
         The number of core to use for multi-processing. If unset, the value
         returned by ``os.cpu_count``.
@@ -215,8 +235,8 @@ def build_starfield_estimate(
     n_chunks = ceil(starfield_shape[-1] / stride_size)
     if stack_all:
         n_chunks = 1
-    pbar_stack = tqdm(total=n_chunks * len(files), desc="Reprojecting")
-    pbars_reduce = [tqdm(total=n_chunks * starfield_shape[-2], desc="Reducing") for _ in reducers]
+    pbar_stack = pbar_class(n_chunks * len(files), "Reprojecting")
+    pbars_reduce = [pbar_class(n_chunks * starfield_shape[-2], "Reducing") for _ in reducers]
     
     # The order we process these files doesn't matter, and for every section,
     # there will be some input files covering that section and some that don't.
